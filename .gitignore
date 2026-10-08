@@ -1,5 +1,7 @@
 # ── Environment & Secrets ──────────────────────────────────────────────────────
 .env
+advantage
+advantage.pub
 .env.*
 !.env.example
 
