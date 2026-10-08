@@ -1,0 +1,201 @@
+AdvantAge OS — Inventory + Demand Prediction
+Expanded-dataset retraining experiment
+Generated: 2026-10-07T20:57:56
+
+NOTE: Production models were NOT overwritten.
+  Baseline: inventory/models/demand_regressor.pkl
+  Baseline: inventory/models/stockout_model.pkl
+  Experiment: inventory/models/demand_regressor_expanded.pkl
+  Experiment: inventory/models/stockout_model_expanded.pkl
+
+========================================================================
+1. DATASET SUMMARY
+========================================================================
+  Products (catalog)     : 40
+  Unique SKUs (sales)    : 40
+  Sales-log rows         : 3600
+  Unique dates           : 90
+  Date range             : 2026-07-09 to 2026-10-06
+  Rows per product       : 90 (min) / 90 (max)
+  potential_demand > units_sold : 21.31% of rows (stock-censored sales still present)
+
+========================================================================
+2. DATA VALIDATION
+========================================================================
+  Catalog columns        : ['product_id', 'product_name', 'category', 'current_stock', 'low_stock_threshold']
+  Sales columns          : ['product_id', 'date', 'potential_demand', 'units_sold', 'stock_after', 'trend_score']
+  Catalog schema match   : True
+  Sales schema match     : True
+  Catalog nulls          : 0
+  Sales nulls            : 0
+  units_sold <= potential_demand : True
+  Non-negative demand/sold/stock : True
+  Target future_demand_7d uses FUTURE potential_demand (not units_sold): True (200 samples checked)
+  Feature columns        : ['avg_daily_sales_7d', 'sales_std_7d', 'current_stock', 'trend_score']
+  No extra features added.
+
+  Demand feature-table ranges:
+       avg_daily_sales_7d  sales_std_7d  current_stock  trend_score  future_demand_7d
+count         3080.000000   3080.000000    3080.000000  3080.000000        3080.00000
+mean             6.708488      4.070382      30.946753     0.114286          63.32013
+std              3.849379      2.646976      23.589727     0.279987          36.76391
+min              0.000000      0.000000       0.000000     0.000000           4.00000
+25%              3.678571      1.951800      10.000000     0.000000          30.00000
+50%              6.000000      3.408672      30.000000     0.000000          60.00000
+75%              9.285714      5.669467      49.000000     0.000000          89.00000
+max             23.857143     15.107551     138.000000     0.800000         201.00000
+
+  Broader-range note vs previous 15-SKU dataset:
+  The previous raw sales_log is no longer available for a direct numeric
+  range comparison. Prior diagnostics treated avg_daily_sales_7d=10.0,
+  sales_std_7d=2.5, current_stock=20, trend_score=0.8 as in-distribution.
+  On the expanded training split, avg_daily_sales_7d range is 0.000 to 23.857;
+  sales_std_7d 0.000 to 15.108;
+  current_stock 0.000 to 138.000;
+  trend_score 0.000 to 0.800.
+  trend_score remains {0.0, 0.8} because generation logic was unchanged.
+
+========================================================================
+3. DEMAND MODEL CANDIDATE RESULTS (VALIDATION ONLY)
+========================================================================
+  Split: chronological unique dates, 70/15/15 of retained dates, 7-day purge at each fold boundary (no shuffle).
+  Train dates : 44 (2026-07-15 to 2026-08-27), rows=1760
+  Val dates   : 9 (2026-09-04 to 2026-09-12), rows=360
+  Test dates  : 10 (2026-09-20 to 2026-09-29), rows=400
+  Purged dates between folds: 14 (7 at each boundary)
+  Usable demand samples after rolling/horizon drop: 3080
+
+  Candidate                         MAE       RMSE        R2
+  ------------------------------- -------- ---------- ----------
+  Model A (32,16) early_stop=True   18.7383    25.4750     0.3967
+  Model B (64,32) early_stop=False  18.7302    25.4740     0.3967
+  Naive (avg*7)                     25.3556    35.1467    -0.1484
+
+  Test metrics were NOT computed for both candidates and were NOT used
+  for selection.
+
+========================================================================
+4. SELECTED DEMAND MODEL
+========================================================================
+  Selected : Model B: MLPRegressor hidden=(64,32), early_stopping=False, max_iter=5000, alpha=0.0001
+  Reason   : Lowest validation MAE
+  Val MAE  : 18.7302
+  Val RMSE : 25.4740
+  Val R2   : 0.3967
+
+========================================================================
+5. FINAL DEMAND TEST METRICS (selected model, one evaluation)
+========================================================================
+  Test MAE  : 14.9698
+  Test RMSE : 23.3954
+  Test R2   : 0.4293
+
+========================================================================
+6. NAIVE BASELINE METRICS (avg_daily_sales_7d * 7)
+========================================================================
+  Val MAE   : 25.3556
+  Val RMSE  : 35.1467
+  Val R2    : -0.1484
+  Test MAE  : 20.7875
+  Test RMSE : 29.4068
+  Test R2   : 0.0984
+  Selected ML beats naive on test MAE : True
+
+========================================================================
+7. STOCKOUT MODEL METRICS
+========================================================================
+  Model: LogisticRegression + StandardScaler, class_weight=balanced,
+  default 0.5 threshold, same 4 features, target=stockout_within_3d.
+  Train dates : 52 (2026-07-15 to 2026-09-04), rows=2080
+  Val dates   : 11 (2026-09-08 to 2026-09-18), rows=440
+  Test dates  : 12 (2026-09-22 to 2026-10-03), rows=480
+  Purged dates between folds: 6 (3 at each boundary)
+
+  Split        Accuracy  Precision    Recall        F1
+  ---------- ---------- ---------- ---------- ----------
+  Validation     0.7955     0.6045     0.8425     0.7039
+  Test           0.8104     0.6103     0.8881     0.7234
+
+  Test confusion matrix [[TN, FP], [FN, TP]]: [[270, 76], [15, 119]]
+
+  Test classification report:
+              precision    recall  f1-score   support
+
+           0       0.95      0.78      0.86       346
+           1       0.61      0.89      0.72       134
+
+    accuracy                           0.81       480
+   macro avg       0.78      0.83      0.79       480
+weighted avg       0.85      0.81      0.82       480
+
+
+========================================================================
+8. SANITY-CHECK RESULTS
+========================================================================
+  Inputs taken from training-split 10th/50th/90th percentiles
+  (inside observed training ranges).
+
+  HIGH DEMAND inputs: {'avg_daily_sales_7d': 12.157142857142876, 'sales_std_7d': 3.0976157484490057, 'current_stock': 30.5, 'trend_score': 0.0}
+  HIGH prediction   : 93.63
+  HIGH naive (avg*7): 85.10
+
+  LOW DEMAND inputs : {'avg_daily_sales_7d': 2.5714285714285716, 'sales_std_7d': 3.0976157484490057, 'current_stock': 30.5, 'trend_score': 0.0}
+  LOW prediction    : 35.80
+  LOW naive (avg*7) : 18.00
+
+  High > Low        : True
+
+========================================================================
+9. COMPARISON WITH OLD PRODUCTION METRICS
+========================================================================
+  Old numbers come from the 15-SKU / 1,350-row experiment
+  (approximately 80/20 chronological for production scripts).
+  New numbers use 40 SKU / 3,600 rows and 70/15/15 unique-date split.
+  These are NOT a perfectly matched A/B of the same holdout.
+
+  Demand (test)
+  Source                         MAE       RMSE        R2
+  ----------------------- ---------- ---------- ----------
+  Old production (approx)      17.01      22.45     0.4373
+  New selected (this run)    14.9698    23.3954     0.4293
+  Old naive (approx)           21.03        n/a     0.1083
+  New naive (this run)       20.7875    29.4068     0.0984
+
+  Stockout class 1 (test)
+  Source                    Precision     Recall         F1
+  ----------------------- ---------- ---------- ----------
+  Old production (approx)     0.5327     0.8143     0.6441
+  New (this run)              0.6103     0.8881     0.7234
+
+========================================================================
+10. DID THE EXPANDED DATASET IMPROVE THE MODELS?
+========================================================================
+  Demand test MAE lower than old reported MAE : True
+  Demand test R2  higher than old reported R2 : False
+  Demand selected model beats new naive MAE   : True
+  Stockout test recall higher than old recall : True
+
+  Interpretation must be cautious: different SKU mix, different split
+  ratios, and a later date window mean metric movement is not a pure
+  sample-size effect. Production files were left unchanged pending review.
+
+========================================================================
+11. LIMITATIONS
+========================================================================
+  - Data remain synthetic (Poisson + weekday/trend factors).
+  - Features still use units_sold (stock-censored) while the demand
+    target uses potential_demand; this mismatch is intentional but
+    caps how well recent sales can explain unconstrained demand.
+  - trend_score is still a binary-like boost indicator (0.0 or 0.8).
+  - No product identity/category features (by design).
+  - 90-day window is short; 7-day horizon plus 7-day history drop many rows.
+  - MLP training is stochastic aside from random_state; early_stopping
+    uses an internal validation split of the training fold.
+  - Old vs new metric comparison is across different datasets/splits.
+  - Orchestrator still points at production .pkl files, not these artifacts.
+
+  Production SHA256 unchanged: True
+    demand_regressor.pkl  : e954e98d7887e8d3b9bde84bc425256ed07df00682bcad16e537ea6102bef628
+    stockout_model.pkl    : ff2c6c07ca16f4607caea46a056c5dd517afc0f0f384a6d35808571c80a479e5
+
+END OF REPORT

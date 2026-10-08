@@ -1,0 +1,46 @@
+toe
+
+2 18 0104
+
+«
+
+SYARIKAT PERNIAGAAN GIN KEE
+(81109-A)
+NO 290, JALAN AIR PANAS,
+SETAPAK,
+53200, KUALA LUMPUR.
+TEL : 03-40210276
+GST ID : 000750673920
+SIMPLIFIED TAX INVOICE
+
+CASH
+DocNo _. CS00012514 Date: 03/01/2018
+Cashier - USER Time: 10:37:00
+Salesperson - Ref. :
+ltem_ Qty S/Price Amount Tax
+1938 2 6.89 13.78 SR
+4" ROLLER SET
+1618 1 40.28 4028 SR
+7LT TOPLS EMULSION PAINT
+2430 2 18.02 3604 SR
+CEMEIN! (50KG)
+2225 1 4.77 477 SR
+PLASTIC TRAP (L)
+~ fotaiary. 6 - 94.87
+Tota! Sales (Excluding GST) ° 89.50
+Discount : 0.00
+Total GST : §.37
+Rounding : 0.00
+Total Sales (Inclusive of GST) : 94.87
+CASH : 94.87
+Change : 0.00
+
+‘GST SUMMARY
+
+TaxCode % Amt(RM) Tax(RM)
+* 6 89.50 5 37
+
+Total : 89.50 §.37] 7
+
+GOODS SOLD ARE NOT RETURNABLE, THANK YOU
+__——— ee
