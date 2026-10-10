@@ -22,11 +22,8 @@ from scipy.special import expit
 
 
 def _install_wdac_sklearn_stubs():
-    """Allow LogisticRegression/MLPRegressor when WDAC blocks some sklearn .pyd files.
-
-    Does not modify inventory/src/_sklearn_shim.py. Extra stubs cover modules
-    blocked in this session (_openmp_helpers, _loss, sag/sgd fast).
-    """
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    return
     src_dir = os.path.dirname(os.path.abspath(__file__))
     if src_dir not in sys.path:
         sys.path.insert(0, src_dir)
@@ -126,8 +123,6 @@ def _install_wdac_sklearn_stubs():
         "_plain_sgd32": None,
         "_plain_sgd64": None,
     })
-
-    import _sklearn_shim  # noqa: F401  existing WDAC stubs
 
 
 _install_wdac_sklearn_stubs()
@@ -308,7 +303,7 @@ def main():
     sales_cols = list(sales.columns)
     expected_catalog = [
         "product_id", "product_name", "category",
-        "current_stock", "low_stock_threshold",
+        "current_stock", "price",
     ]
     expected_sales = [
         "product_id", "date", "potential_demand",

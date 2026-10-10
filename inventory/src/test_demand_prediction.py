@@ -15,6 +15,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.demand_model import predict_future_demand
 from src.stockout_model import predict_stockout
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 SEPARATOR = "=" * 60
 
 
@@ -103,7 +106,7 @@ def test_stockout_predictions():
 def main():
     print()
     print(SEPARATOR)
-    print("  INVENTORY MODULE — MODEL TEST SUITE")
+    print("  INVENTORY MODULE -- MODEL TEST SUITE")
     print(SEPARATOR)
     print()
 

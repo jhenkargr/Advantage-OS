@@ -1,0 +1,41 @@
+product_id,product_name,category,current_stock,trend_score,predicted_7_day_demand,safety_stock,required_stock_to_maintain,recommended_order_quantity,stockout_probability,alert_level
+SKU001,Amul Butter 500g,Dairy,13,0.8,57,11,68,55,0.6507,HIGH
+SKU002,Parle-G Biscuit,Snacks,53,0.8,39,6,45,0,0.0305,NONE
+SKU003,Maggi Noodles 70g,Instant Food,40,0.8,53,7,60,20,0.1487,NONE
+SKU004,Tata Salt 1kg,Grocery,14,0.8,106,23,129,115,0.5843,HIGH
+SKU005,Britannia Bread,Bakery,25,0.8,149,26,175,150,0.4703,MEDIUM
+SKU006,Maaza Mango 200ml,Beverages,66,0.8,54,13,67,1,0.0148,NONE
+SKU007,Colgate Toothpaste 100g,Personal Care,27,0.8,47,11,58,31,0.3823,LOW
+SKU008,Surf Excel 1kg,Household,0,0.8,146,18,164,164,0.9249,HIGH
+SKU009,Fortune Sunflower Oil 1L,Grocery,46,0.8,176,31,207,161,0.1867,NONE
+SKU010,Lays Chips 52g,Snacks,22,0.8,101,20,121,99,0.5131,HIGH
+SKU011,Cadbury Dairy Milk,Confectionery,15,0.8,40,11,51,36,0.435,LOW
+SKU012,Aashirvaad Atta 5kg,Grocery,48,0.8,162,27,189,141,0.1253,NONE
+SKU013,Red Label Tea 250g,Beverages,61,0.8,42,9,51,0,0.0157,NONE
+SKU014,Dettol Soap,Personal Care,28,0.8,43,5,48,20,0.1415,NONE
+SKU015,Kissan Jam 200g,Grocery,0,0.8,131,15,146,146,0.9097,HIGH
+SKU016,Brown Sugar Boba Kit,Beverages,33,0.8,31,7,38,5,0.13,NONE
+SKU017,Matcha Green Tea Powder,Beverages,0,0.8,157,22,179,179,0.9171,HIGH
+SKU018,Dalgona Coffee Mix,Beverages,56,0.8,43,6,49,0,0.0184,NONE
+SKU019,Cold Brew Concentrate,Beverages,47,0.8,49,14,63,16,0.0855,NONE
+SKU020,Oats Overnight Jar Kit,F&B,13,0.8,42,12,54,41,0.6106,HIGH
+SKU021,Protein Shake Powder,Wellness,0,0.8,93,15,108,108,0.87,HIGH
+SKU022,Herbal Immunity Tea,Wellness,50,0.8,65,0,65,15,0.0176,NONE
+SKU023,Ayurvedic Face Pack,Wellness,11,0.8,122,21,143,132,0.7349,HIGH
+SKU024,Kombucha Bottle,Beverages,44,0.8,37,8,45,1,0.049,NONE
+SKU025,Korean Skincare Sheet Mask,Wellness,44,0.8,47,15,62,18,0.1013,NONE
+SKU026,Oversized Cotton Tee,Fashion,65,0.8,113,21,134,69,0.0288,NONE
+SKU027,Co-ord Set Ethnic Print,Fashion,44,0.8,36,7,43,0,0.0554,NONE
+SKU028,Jhumka Earrings Trendy,Fashion,28,0.8,126,12,138,110,0.5103,HIGH
+SKU029,Tote Bag Canvas Printed,Fashion,9,0.8,51,13,64,55,0.5781,HIGH
+SKU030,Kolhapuri Sandals,Fashion,0,0.8,46,10,56,56,0.7228,HIGH
+SKU031,Reusable Metal Straw Set,Household,57,0.8,69,6,75,18,0.0369,NONE
+SKU032,Millet Cookies Pack,Snacks,59,0.8,42,7,49,0,0.0193,NONE
+SKU033,Cold Pressed Coconut Oil,Wellness,36,0.8,36,6,42,6,0.1039,NONE
+SKU034,Jaggery Powder,Grocery,21,0.8,40,6,46,25,0.2519,NONE
+SKU035,Instant Filter Coffee Sachets,Beverages,0,0.8,71,0,71,71,0.5151,HIGH
+SKU036,Basmati Rice 5kg,Grocery,8,0.8,148,21,169,161,0.883,HIGH
+SKU037,Toor Dal 1kg,Grocery,63,0.8,59,2,61,0,0.0093,NONE
+SKU038,Besan 1kg,Grocery,26,0.8,31,7,38,12,0.2183,NONE
+SKU039,Haldiram Namkeen,Snacks,67,0.8,52,11,63,0,0.0101,NONE
+SKU040,Bournvita 500g,Beverages,10,0.8,127,22,149,139,0.7437,HIGH

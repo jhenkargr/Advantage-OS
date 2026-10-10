@@ -74,7 +74,7 @@ def _load_catalog() -> pd.DataFrame:
     """Load and validate product catalog."""
     catalog = pd.read_csv(CATALOG_PATH)
     required = ["product_id", "product_name", "category",
-                "current_stock", "low_stock_threshold"]
+                "current_stock", "price"]
     missing = [c for c in required if c not in catalog.columns]
     if missing:
         raise ValueError(f"Catalog missing columns: {missing}")
@@ -97,7 +97,8 @@ def _load_sales_log() -> pd.DataFrame:
 # Feature calculation
 # ---------------------------------------------------------------------------
 def compute_latest_features(product_id: str,
-                            sales_log_df: pd.DataFrame) -> dict:
+                            sales_log_df: pd.DataFrame,
+                            trend_score_override: float | None = None) -> dict:
     """
     Compute the four model input features from the latest 7 observations
     of a given product.
@@ -110,6 +111,8 @@ def compute_latest_features(product_id: str,
     product_id : str
     sales_log_df : pd.DataFrame  (must contain date, units_sold,
                                    stock_after, trend_score)
+    trend_score_override : float, optional
+        Custom trend score to override historical trend indicator.
 
     Returns
     -------
@@ -136,7 +139,7 @@ def compute_latest_features(product_id: str,
 
     latest_row = prod.iloc[-1]
     current_stock = float(latest_row["stock_after"])
-    trend_score = float(latest_row["trend_score"])
+    trend_score = float(trend_score_override) if trend_score_override is not None else float(latest_row["trend_score"])
 
     return {
         "avg_daily_sales_7d": avg_daily_sales_7d,
@@ -149,7 +152,7 @@ def compute_latest_features(product_id: str,
 # ---------------------------------------------------------------------------
 # Main recommendation function
 # ---------------------------------------------------------------------------
-def get_replenishment_recommendation(product_id: str) -> dict:
+def get_replenishment_recommendation(product_id: str, trend_score_override: float | None = None) -> dict:
     """
     Produce a complete inventory recommendation for a single product.
 
@@ -159,6 +162,8 @@ def get_replenishment_recommendation(product_id: str) -> dict:
     Parameters
     ----------
     product_id : str   e.g. "SKU001"
+    trend_score_override : float, optional
+        Custom trend score to override historical trend indicator.
 
     Returns
     -------
@@ -176,11 +181,11 @@ def get_replenishment_recommendation(product_id: str) -> dict:
     product_name = cat_row["product_name"]
     category = cat_row["category"]
     catalog_current_stock = int(cat_row["current_stock"])
-    low_stock_threshold = int(cat_row["low_stock_threshold"])
+    price = float(cat_row["price"]) if "price" in cat_row and pd.notna(cat_row["price"]) else 0.0
 
     # --- Feature calculation ---
     sales = _load_sales_log()
-    features = compute_latest_features(product_id, sales)
+    features = compute_latest_features(product_id, sales, trend_score_override=trend_score_override)
 
     model_current_stock = features["current_stock"]
     avg_daily_sales_7d = features["avg_daily_sales_7d"]
@@ -202,26 +207,35 @@ def get_replenishment_recommendation(product_id: str) -> dict:
     raw_demand = float(demand_model.predict(X)[0])
     predicted_7_day_demand = max(0, round(raw_demand))
 
-    # --- Reorder logic (simple Phase-1 baseline rule) ---
-    # safety_stock = buffer to cover SAFETY_STOCK_DAYS of average demand
+    # --- Reorder logic ---
     safety_stock = round(avg_daily_sales_7d * SAFETY_STOCK_DAYS)
+    low_stock_limit = (
+        int(cat_row["low_stock_threshold"])
+        if "low_stock_threshold" in cat_row and pd.notna(cat_row["low_stock_threshold"])
+        else safety_stock
+    )
 
-    # recommended_order = demand we expect minus what we have, plus buffer
+    # Required stocks to maintain to cover expected demand plus safety buffer
+    required_stock_to_maintain = predicted_7_day_demand + safety_stock
+
+    # Recommended order = deficit to reach required stock level
     recommended_order_quantity = max(
         0,
-        predicted_7_day_demand - int(model_current_stock) + safety_stock,
+        required_stock_to_maintain - int(model_current_stock),
     )
 
     # --- Alert logic ---
     alert_needed = (
         stockout_probability >= STOCKOUT_PROB_THRESHOLD
-        or model_current_stock <= low_stock_threshold
+        or model_current_stock <= low_stock_limit
     )
 
     if stockout_probability >= STOCKOUT_PROB_THRESHOLD:
         alert_level = "HIGH"
-    elif model_current_stock <= low_stock_threshold:
+    elif model_current_stock <= low_stock_limit:
         alert_level = "MEDIUM"
+    elif stockout_probability >= 0.30:
+        alert_level = "LOW"
     else:
         alert_level = "NONE"
 
@@ -229,6 +243,7 @@ def get_replenishment_recommendation(product_id: str) -> dict:
         "product_id": product_id,
         "product_name": product_name,
         "category": category,
+        "price": price,
         "catalog_current_stock": catalog_current_stock,
         "model_current_stock": int(model_current_stock),
         "avg_daily_sales_7d": round(avg_daily_sales_7d, 2),
@@ -238,8 +253,8 @@ def get_replenishment_recommendation(product_id: str) -> dict:
         "stockout_probability": round(stockout_probability, 4),
         "stockout_prediction": stockout_prediction,
         "safety_stock": safety_stock,
+        "required_stock_to_maintain": required_stock_to_maintain,
         "recommended_order_quantity": recommended_order_quantity,
-        "low_stock_threshold": low_stock_threshold,
         "alert_needed": alert_needed,
         "alert_level": alert_level,
     }
@@ -248,11 +263,14 @@ def get_replenishment_recommendation(product_id: str) -> dict:
 # ---------------------------------------------------------------------------
 # All-product sweep
 # ---------------------------------------------------------------------------
-def run_for_all_products() -> pd.DataFrame:
+def run_for_all_products(trend_score_override: float | None = None) -> pd.DataFrame:
     """
     Run get_replenishment_recommendation() for every product in the catalog.
 
-    Products with insufficient history are skipped with a warning.
+    Parameters
+    ----------
+    trend_score_override : float, optional
+        Custom trend score to apply across all products.
 
     Returns
     -------
@@ -265,7 +283,7 @@ def run_for_all_products() -> pd.DataFrame:
     results = []
     for pid in product_ids:
         try:
-            rec = get_replenishment_recommendation(pid)
+            rec = get_replenishment_recommendation(pid, trend_score_override=trend_score_override)
             results.append(rec)
         except ValueError as e:
             print(f"  Skipped {pid}: {e}")

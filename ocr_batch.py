@@ -1,6 +1,10 @@
-import pytesseract
-from PIL import Image
+import sys
 from pathlib import Path
+from PIL import Image
+import pytesseract
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 # Path to Tesseract executable
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"

@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Python Virtual Environments
+.venv/
+.venv*/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Unit test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# IDE / Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files & temporary locks
+.DS_Store
+Thumbs.db
+~$*
+output.txt
+samp1_result.txt
+
+# Local uploads and test receipts
+inventory/data/receipts/*
+!inventory/data/receipts/.gitkeep
+

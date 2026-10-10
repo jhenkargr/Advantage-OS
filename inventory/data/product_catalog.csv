@@ -1,41 +1,41 @@
-product_id,product_name,category,current_stock,low_stock_threshold
-SKU001,Amul Butter 500g,Dairy,45,10
-SKU002,Parle-G Biscuit,Snacks,120,20
-SKU003,Maggi Noodles 70g,Instant Food,80,15
-SKU004,Tata Salt 1kg,Grocery,50,10
-SKU005,Britannia Bread,Bakery,30,8
-SKU006,Maaza Mango 200ml,Beverages,60,15
-SKU007,Colgate Toothpaste 100g,Personal Care,40,10
-SKU008,Surf Excel 1kg,Household,25,5
-SKU009,Fortune Sunflower Oil 1L,Grocery,35,8
-SKU010,Lays Chips 52g,Snacks,90,20
-SKU011,Cadbury Dairy Milk,Confectionery,70,15
-SKU012,Aashirvaad Atta 5kg,Grocery,20,5
-SKU013,Red Label Tea 250g,Beverages,45,10
-SKU014,Dettol Soap,Personal Care,55,12
-SKU015,Kissan Jam 200g,Grocery,25,6
-SKU016,Brown Sugar Boba Kit,Beverages,30,8
-SKU017,Matcha Green Tea Powder,Beverages,25,6
-SKU018,Dalgona Coffee Mix,Beverages,20,5
-SKU019,Cold Brew Concentrate,Beverages,25,6
-SKU020,Oats Overnight Jar Kit,F&B,30,8
-SKU021,Protein Shake Powder,Wellness,20,5
-SKU022,Herbal Immunity Tea,Wellness,35,8
-SKU023,Ayurvedic Face Pack,Wellness,25,6
-SKU024,Kombucha Bottle,Beverages,15,4
-SKU025,Korean Skincare Sheet Mask,Wellness,40,10
-SKU026,Oversized Cotton Tee,Fashion,30,8
-SKU027,Co-ord Set Ethnic Print,Fashion,20,5
-SKU028,Jhumka Earrings Trendy,Fashion,50,12
-SKU029,Tote Bag Canvas Printed,Fashion,25,6
-SKU030,Kolhapuri Sandals,Fashion,20,5
-SKU031,Reusable Metal Straw Set,Household,30,8
-SKU032,Millet Cookies Pack,Snacks,35,8
-SKU033,Cold Pressed Coconut Oil,Wellness,25,6
-SKU034,Jaggery Powder,Grocery,40,10
-SKU035,Instant Filter Coffee Sachets,Beverages,45,10
-SKU036,Basmati Rice 5kg,Grocery,40,10
-SKU037,Toor Dal 1kg,Grocery,50,10
-SKU038,Besan 1kg,Grocery,35,8
-SKU039,Haldiram Namkeen,Snacks,60,15
-SKU040,Bournvita 500g,Beverages,30,8
+product_id,product_name,category,current_stock,price,low_stock_threshold
+SKU001,Amul Butter 500g,Dairy,45,275.0,10
+SKU002,Parle-G Biscuit,Snacks,120,10.0,20
+SKU003,Maggi Noodles 70g,Instant Food,80,14.0,15
+SKU004,Tata Salt 1kg,Grocery,50,28.0,10
+SKU005,Britannia Bread,Bakery,30,45.0,8
+SKU006,Maaza Mango 200ml,Beverages,60,20.0,15
+SKU007,Colgate Toothpaste 100g,Personal Care,40,65.0,10
+SKU008,Surf Excel 1kg,Household,25,140.0,5
+SKU009,Fortune Sunflower Oil 1L,Grocery,35,135.0,8
+SKU010,Lays Chips 52g,Snacks,90,20.0,20
+SKU011,Cadbury Dairy Milk,Confectionery,70,40.0,15
+SKU012,Aashirvaad Atta 5kg,Grocery,20,260.0,5
+SKU013,Red Label Tea 250g,Beverages,45,130.0,10
+SKU014,Dettol Soap,Personal Care,55,42.0,12
+SKU015,Kissan Jam 200g,Grocery,25,85.0,6
+SKU016,Brown Sugar Boba Kit,Beverages,30,350.0,8
+SKU017,Matcha Green Tea Powder,Beverages,25,499.0,6
+SKU018,Dalgona Coffee Mix,Beverages,20,199.0,5
+SKU019,Cold Brew Concentrate,Beverages,25,280.0,6
+SKU020,Oats Overnight Jar Kit,F&B,30,220.0,8
+SKU021,Protein Shake Powder,Wellness,20,899.0,5
+SKU022,Herbal Immunity Tea,Wellness,35,240.0,8
+SKU023,Ayurvedic Face Pack,Wellness,25,180.0,6
+SKU024,Kombucha Bottle,Beverages,15,160.0,4
+SKU025,Korean Skincare Sheet Mask,Wellness,40,150.0,10
+SKU026,Oversized Cotton Tee,Fashion,30,699.0,8
+SKU027,Co-ord Set Ethnic Print,Fashion,20,1299.0,5
+SKU028,Jhumka Earrings Trendy,Fashion,50,299.0,12
+SKU029,Tote Bag Canvas Printed,Fashion,25,399.0,6
+SKU030,Kolhapuri Sandals,Fashion,20,599.0,5
+SKU031,Reusable Metal Straw Set,Household,30,149.0,8
+SKU032,Millet Cookies Pack,Snacks,35,120.0,8
+SKU033,Cold Pressed Coconut Oil,Wellness,25,250.0,6
+SKU034,Jaggery Powder,Grocery,40,90.0,10
+SKU035,Instant Filter Coffee Sachets,Beverages,45,175.0,10
+SKU036,Basmati Rice 5kg,Grocery,40,480.0,10
+SKU037,Toor Dal 1kg,Grocery,50,165.0,10
+SKU038,Besan 1kg,Grocery,35,110.0,8
+SKU039,Haldiram Namkeen,Snacks,60,50.0,15
+SKU040,Bournvita 500g,Beverages,30,235.0,8
