@@ -1,0 +1,29 @@
+# ---- SECRETS: never commit these (they contain your API keys) ----
+.env
+.env.*
+!.env.example
+
+# ---- Python virtual environment and caches ----
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ---- Generated images (test outputs from check_setup.py, curl, /docs) ----
+# Any image in the project root is ignored. To show screenshots on GitHub,
+# put them in a docs/ folder (docs/ is NOT ignored).
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+
+# ---- Logs ----
+*.log
+
+# ---- Editor / OS files ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
