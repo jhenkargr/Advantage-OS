@@ -32,6 +32,7 @@ except Exception:
 def _load_env():
     env_paths = [
         os.path.join(os.path.dirname(__file__), ".env"),
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),
         os.path.join(os.path.dirname(__file__), "advantage", ".env"),
         os.path.join(os.getcwd(), ".env"),
     ]

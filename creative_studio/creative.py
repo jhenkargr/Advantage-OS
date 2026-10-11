@@ -21,7 +21,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from PIL import Image
 
-import nvidia_client as nv
+try:
+    from creative_studio import nvidia_client as nv
+except ImportError:
+    import nvidia_client as nv
 
 logger = logging.getLogger(__name__)
 

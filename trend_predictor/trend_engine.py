@@ -808,5 +808,146 @@ def _report_rising(rising, out_dir):
     print()
 
 
+# ── FastAPI Router & SME Trend Analysis Handler ──────────────────────────────
+from fastapi import APIRouter, HTTPException
+from pathlib import Path
+
+router = APIRouter(tags=["Trend Analysis (AI-Powered)"])
+
+
+def process_trend_analysis(
+    sme: str,
+    city: str = "Bengaluru",
+    days: int = 90,
+    topics: int = 6,
+    demo: bool = False,
+    sources: list[str] = None,
+    refresh: bool = False,
+):
+    try:
+        from trend_predictor.trend_db import get_cached_trends, save_trends_to_db
+        from trend_predictor.trend_analyzer_cohere import analyze_trends
+    except ImportError:
+        from trend_db import get_cached_trends, save_trends_to_db
+        from trend_analyzer_cohere import analyze_trends
+
+    if sources is None:
+        sources = ["reddit", "youtube", "trends"]
+    sme_clean = sme.strip().lower()
+    if sme_clean not in SME_PROFILES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown SME '{sme}'. Allowed categories: {list(SME_PROFILES.keys())}",
+        )
+
+    # 1. Check Database First ({sme}_trends table)
+    if not refresh:
+        cached_trends = get_cached_trends(sme=sme_clean, city=city)
+        if cached_trends is not None:
+            return cached_trends
+
+        _here_dir = Path(__file__).resolve().parent
+        for out_dir in [_here_dir / "trend_output", _here_dir.parent / "trend_output", Path("trend_output")]:
+            out_file = out_dir / "trending_items.json"
+            if out_file.is_file():
+                try:
+                    with open(out_file, "r", encoding="utf-8") as f:
+                        file_data = json.load(f)
+                    if file_data.get("sme", "").lower() == sme_clean:
+                        final_payload = {
+                            "status": "success",
+                            "sme": sme_clean,
+                            "city": city,
+                            "generated": file_data.get("generated"),
+                            "total_documents_analyzed": file_data.get("total_documents_analyzed", 0),
+                            "total_trending_items": len(file_data.get("items", [])),
+                            "trending_items": file_data.get("items", []),
+                            "topic_clusters": [],
+                            "rising_searches": [],
+                            "from_file": True,
+                        }
+                        record_id = save_trends_to_db(sme=sme_clean, city=city, trend_output=final_payload)
+                        final_payload["database_saved"] = bool(record_id)
+                        final_payload["database_table"] = f"{sme_clean}_trends"
+                        final_payload["database_record_id"] = record_id
+                        print(f"[trend_db] Imported '{out_file}' into '{sme_clean}_trends' table (ID: {record_id})")
+                        return final_payload
+                except Exception as err:
+                    print(f"[trend_db] Error checking {out_file}: {err}")
+
+    # 2. Run Trend Engine in-memory
+    try:
+        trends_raw = discover_trends(
+            sme=sme_clean,
+            city=city,
+            days=days,
+            sources=tuple(sources),
+            topics=topics,
+            demo=demo,
+            save_files=False,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Trend engine failed: {exc}")
+
+    # 3. Feed in-memory results directly to Cohere LLM
+    try:
+        trending_items = analyze_trends(
+            trends_data=trends_raw,
+            rising_queries=trends_raw.get("rising_queries", []),
+        )
+    except Exception as exc:
+        return {
+            "status": "partial_success",
+            "sme": sme_clean,
+            "city": city,
+            "error_cohere": str(exc),
+            "total_documents_analyzed": trends_raw.get("total_documents", 0),
+            "trending_items": [],
+            "topic_clusters": trends_raw.get("trends", []),
+            "rising_searches": trends_raw.get("rising_queries", []),
+        }
+
+    # 4. Build output payload
+    final_output = {
+        "status": "success",
+        "sme": sme_clean,
+        "city": city,
+        "generated": trends_raw.get("generated"),
+        "total_documents_analyzed": trends_raw.get("total_documents", 0),
+        "total_trending_items": len(trending_items),
+        "trending_items": trending_items,
+        "topic_clusters": trends_raw.get("trends", []),
+        "rising_searches": trends_raw.get("rising_queries", []),
+    }
+
+    # 5. Save output to database table {sme}_trends
+    record_id = save_trends_to_db(sme=sme_clean, city=city, trend_output=final_output)
+    final_output["database_saved"] = bool(record_id)
+    final_output["database_table"] = f"{sme_clean}_trends"
+    final_output["database_record_id"] = record_id
+
+    return final_output
+
+
+@router.get("/api/trends/analyze/{sme}")
+@router.get("/trends/analyze/{sme}", include_in_schema=False)
+def analyze_sme_trends(
+    sme: str,
+    city: str = "Bengaluru",
+    days: int = 90,
+    topics: int = 6,
+    demo: bool = False,
+    refresh: bool = False,
+):
+    """
+    AI-Powered SME Trend Intelligence:
+      1. Checks if output is already in database table '{sme}_trends'.
+      2. Returns cached result or scrapes/analyzes live and stores to DB.
+    """
+    return process_trend_analysis(
+        sme=sme, city=city, days=days, topics=topics, demo=demo, refresh=refresh
+    )
+
+
 if __name__ == "__main__":
     main()

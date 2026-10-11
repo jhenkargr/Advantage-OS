@@ -50,6 +50,8 @@ _pipeline_cache: Any = None   # None = not loaded yet; False = failed
 # ── Model path & Database Model Storage ─────────────────────────────────────────
 _HERE = Path(__file__).parent
 MODEL_PATH = _HERE / "model_test_analysis.pkl"
+if not MODEL_PATH.exists() and (_HERE.parent / "model_test_analysis.pkl").exists():
+    MODEL_PATH = _HERE.parent / "model_test_analysis.pkl"
 
 _MODEL_CACHE: dict | None = None
 _MODEL_CACHE_SOURCE: str = "none"
@@ -411,8 +413,12 @@ def run_prediction(
         forecast  (list of {date, predicted_trend_score}),
         rows_collected  (total posts used)
     """
-    from reddit_scrap import scrape_reddit
-    from x_scrapper import scrape_x
+    try:
+        from trend_predictor.reddit_scrap import scrape_reddit
+        from trend_predictor.x_scrapper import scrape_x
+    except ImportError:
+        from reddit_scrap import scrape_reddit
+        from x_scrapper import scrape_x
 
     # ── Step 1: scrape both sources concurrently ───────────────────────────────
     print("[Predict] Starting parallel scraping …")
@@ -492,3 +498,101 @@ def run_prediction(
             date=forecast_df["date"].astype(str)
         ).to_dict(orient="records"),
     }
+
+
+# ── 6. FastAPI Router & Endpoints ─────────────────────────────────────────────
+from typing import Optional
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+from inventory.db import get_db, get_ml_model_from_db
+
+router = APIRouter(tags=["Trend Prediction"])
+
+
+class PredictRequest(BaseModel):
+    keywords: list[str] = Field(
+        ...,
+        min_length=1,
+        example=["artificial intelligence", "machine learning"],
+        description="One or more search keywords to analyse.",
+    )
+    use_transformer: bool = Field(
+        default=True,
+        description=(
+            "Set to false to use only VADER (faster). "
+            "True = DistilBERT + VADER ensemble (more accurate, slower)."
+        ),
+    )
+
+
+@router.post("/predict/upload-model")
+async def upload_prediction_model(
+    file: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload `model_test_analysis.pkl` into the database (Neon PostgreSQL `ml_models` table).
+    If no file is attached, automatically uploads and syncs the existing local
+    `model_test_analysis.pkl` file directly into the database.
+    """
+    if file is not None and file.filename:
+        raw_bytes = await file.read()
+        filename = file.filename
+    else:
+        if not MODEL_PATH.exists():
+            raise HTTPException(
+                status_code=400,
+                detail=f"No file uploaded and local file {MODEL_PATH} does not exist.",
+            )
+        with open(MODEL_PATH, "rb") as f:
+            raw_bytes = f.read()
+        filename = MODEL_PATH.name
+
+    try:
+        result = save_model_bytes_to_db(raw_bytes, filename=filename, db=db)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to process and store model in database: {e}",
+        )
+
+
+@router.get("/predict/model-status")
+def prediction_model_status(db: Session = Depends(get_db)):
+    """Check whether model_test_analysis is stored in the database and active in memory."""
+    record = get_ml_model_from_db("model_test_analysis", db=db)
+    local_exists = MODEL_PATH.exists()
+
+    return {
+        "model_name": "model_test_analysis",
+        "in_database": record is not None,
+        "database_storage": "Neon PostgreSQL (table: ml_models)",
+        "database_file_size_bytes": record.file_size_bytes if record else None,
+        "database_version": record.version if record else None,
+        "database_updated_at": str(record.updated_at) if record else None,
+        "local_file_exists": local_exists,
+        "local_file_size_bytes": MODEL_PATH.stat().st_size if local_exists else None,
+        "active_cache_source": _MODEL_CACHE_SOURCE,
+        "in_memory_cached": _MODEL_CACHE is not None,
+    }
+
+
+@router.post("/predict")
+def predict(request: PredictRequest, db: Session = Depends(get_db)):
+    """
+    Scrapes Reddit + X for the given keywords, runs ensemble sentiment
+    analysis (VADER + DistilBERT), and returns a 30-day trend forecast
+    using the model retrieved from the database.
+    """
+    keywords = [kw.strip() for kw in request.keywords if kw.strip()]
+    if not keywords:
+        raise HTTPException(status_code=422, detail="'keywords' list must not be empty.")
+
+    result = run_prediction(keywords, use_transformer=request.use_transformer, db=db)
+
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+
+    return result

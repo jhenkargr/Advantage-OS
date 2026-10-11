@@ -11,5 +11,6 @@ api_router = APIRouter()
 
 api_router.include_router(dashboard.router)
 api_router.include_router(inventory.router)
+api_router.include_router(inventory.csv_router)
 api_router.include_router(influencers.router)
 

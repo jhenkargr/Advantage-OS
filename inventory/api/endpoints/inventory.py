@@ -179,13 +179,16 @@ def _run_demand_model_and_save(
 ) -> tuple[int, list[StockPlanItem]]:
     """Runs demand.py ML model and saves output to stock_plan.csv and Neon/SQLite database."""
     try:
-        from demand import run as run_demand_forecast
+        from inventory.demand import run as run_demand_forecast
     except ImportError:
-        import sys
-        adv_dir = Path(__file__).resolve().parent.parent.parent
-        if str(adv_dir) not in sys.path:
-            sys.path.insert(0, str(adv_dir))
-        from demand import run as run_demand_forecast
+        try:
+            from demand import run as run_demand_forecast
+        except ImportError:
+            import sys
+            adv_dir = Path(__file__).resolve().parent.parent.parent
+            if str(adv_dir) not in sys.path:
+                sys.path.insert(0, str(adv_dir))
+            from inventory.demand import run as run_demand_forecast
 
     out_base = str(out_path.parent / out_path.stem)
     df_plan = run_demand_forecast(
@@ -499,4 +502,38 @@ async def upload_sales_history(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error importing sales history into database: {e}")
+
+
+# ── CSV Upload Router (Mounted under /api) ──────────────────────────────────
+csv_router = APIRouter(tags=["Inventory & Demand Prediction"])
+
+
+@csv_router.post(
+    "/products/upload-csv",
+    response_model=ProductUploadResponse,
+    summary="Upload products CSV to database (Direct Alias)",
+    description="Upload products.csv directly into database, save to disk, and update stock plan.",
+)
+async def api_products_upload_csv(
+    file: Optional[UploadFile] = File(None, description="CSV file containing products"),
+    replace_all: bool = Form(False, description="Set True to wipe existing products"),
+    recalculate_stock_plan: bool = Form(True, description="Recalculate stock plan and save to DB + stock_plan.csv"),
+    db: Session = Depends(get_db),
+):
+    return await upload_products(file, replace_all, recalculate_stock_plan, db)
+
+
+@csv_router.post(
+    "/sales-history/upload-csv",
+    response_model=SalesHistoryUploadResponse,
+    summary="Upload sales history CSV to database (Direct Alias)",
+    description="Upload sales_history.csv directly into database, save to disk, recalculate demand forecast, and save to database & stock_plan.csv.",
+)
+async def api_sales_history_upload_csv(
+    file: Optional[UploadFile] = File(None, description="CSV file containing sales history"),
+    replace_all: bool = Form(False, description="Set True to wipe existing sales logs"),
+    recalculate_stock_plan: bool = Form(True, description="Recalculate stock plan and save to DB + stock_plan.csv"),
+    db: Session = Depends(get_db),
+):
+    return await upload_sales_history(file, replace_all, recalculate_stock_plan, db)
 

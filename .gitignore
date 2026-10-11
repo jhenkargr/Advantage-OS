@@ -75,18 +75,19 @@ desktop.ini
 # ── FastAPI / Uvicorn ─────────────────────────────────────────────────────────
 .uvicorn/
 
-# ── Misc ──────────────────────────────────────────────────────────────────────
+# ── Misc & Databases ──────────────────────────────────────────────────────────
 *.tmp
 *.bak
 *.orig
+*.db
+*.sqlite
+*.sqlite3
 .neon
+inventory/data/*.db
+trend_output/
 
-
-__pycache__/
-*.py[cod]
-
-# Node.js dependencies
+# ── Node.js dependencies ──────────────────────────────────────────────────────
 node_modules/
 
-# Build output
-dist/
+# ── Build output ──────────────────────────────────────────────────────────────
+dist/

@@ -309,7 +309,7 @@ router = APIRouter(tags=["Keyword Intelligence (Cohere)"])
 )
 def get_related_keywords_endpoint(
     keyword: str = Query(..., min_length=1, examples=["coffee"], description="Seed keyword to expand"),
-    sme_type: str = Query(..., min_length=1, examples=["cafe"], description="SME industry/category (e.g., cafe, restaurant, bakery, boutique, salon)"),
+    sme_type: str = Query("cafe", min_length=1, examples=["cafe"], description="SME industry/category (e.g., cafe, restaurant, bakery, boutique, salon)"),
     limit: int = Query(25, ge=5, le=100, description="Maximum number of related keywords to return"),
 ) -> KeywordResponse:
     try:

@@ -30,6 +30,7 @@ from PIL import Image
 
 _HERE = Path(__file__).resolve().parent
 load_dotenv(dotenv_path=_HERE / ".env")
+load_dotenv(dotenv_path=_HERE.parent / ".env")
 load_dotenv()
 
 API_KEY = os.getenv("NVIDIA_API_KEY", "").strip()
