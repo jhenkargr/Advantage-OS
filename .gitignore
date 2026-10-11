@@ -37,6 +37,7 @@ MANIFEST
 *.bin
 *.safetensors
 *.csv
+*.xlsx
 *.parquet
 *.arrow
 
@@ -83,11 +84,14 @@ desktop.ini
 *.sqlite
 *.sqlite3
 .neon
+backend/.neon
 inventory/data/*.db
+backend/inventory/data/*.db
 trend_output/
 
 # ── Node.js dependencies ──────────────────────────────────────────────────────
 node_modules/
+backend/node_modules/
 
 # ── Build output ──────────────────────────────────────────────────────────────
 dist/
