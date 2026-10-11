@@ -84,3 +84,9 @@ desktop.ini
 
 __pycache__/
 *.py[cod]
+
+# Node.js dependencies
+node_modules/
+
+# Build output
+dist/

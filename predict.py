@@ -37,17 +37,174 @@ from nltk.sentiment import SentimentIntensityAnalyzer
 
 # ── NLTK bootstrap ─────────────────────────────────────────────────────────────
 try:
-    nltk.data.find("sentiment/vader_lexicon")
+    nltk.data.find("sentiment/vader_lexicon.zip")
 except LookupError:
-    print("[INFO] Downloading NLTK vader_lexicon …")
-    nltk.download("vader_lexicon", quiet=True)
+    try:
+        nltk.data.find("sentiment/vader_lexicon")
+    except LookupError:
+        nltk.download("vader_lexicon", quiet=True)
 
 sia = SentimentIntensityAnalyzer()
 _pipeline_cache: Any = None   # None = not loaded yet; False = failed
 
-# ── Model path ─────────────────────────────────────────────────────────────────
+# ── Model path & Database Model Storage ─────────────────────────────────────────
 _HERE = Path(__file__).parent
 MODEL_PATH = _HERE / "model_test_analysis.pkl"
+
+_MODEL_CACHE: dict | None = None
+_MODEL_CACHE_SOURCE: str = "none"
+
+
+def load_model_from_database(db: Any = None) -> dict | None:
+    """Fetches and deserializes the model from the database `ml_models` table."""
+    try:
+        from inventory.db import get_ml_model_from_db, SessionLocal
+        close_db = False
+        if db is None:
+            db = SessionLocal()
+            close_db = True
+        try:
+            record = get_ml_model_from_db("model_test_analysis", db=db)
+            if record and record.model_binary:
+                saved = pickle.loads(record.model_binary)
+                print(f"[Predict] Successfully retrieved model_test_analysis from database ({len(record.model_binary)} bytes).")
+                # Keep local file in sync
+                try:
+                    if not MODEL_PATH.exists() or MODEL_PATH.stat().st_size != len(record.model_binary):
+                        with open(MODEL_PATH, "wb") as f:
+                            f.write(record.model_binary)
+                except Exception:
+                    pass
+                return saved
+        finally:
+            if close_db:
+                db.close()
+    except Exception as exc:
+        print(f"[Predict] Notice during database model query: {exc}")
+    return None
+
+
+def save_model_bytes_to_db(
+    model_bytes: bytes,
+    filename: str = "model_test_analysis.pkl",
+    db: Any = None,
+) -> dict:
+    """
+    Validates model bytes, saves them to the database `ml_models` table,
+    updates the in-memory model cache, and updates local file backup.
+    """
+    global _MODEL_CACHE, _MODEL_CACHE_SOURCE
+
+    try:
+        saved = pickle.loads(model_bytes)
+    except Exception as err:
+        raise ValueError(f"Invalid pickle binary: {err}")
+
+    if not isinstance(saved, dict) or "model" not in saved or "feature_cols" not in saved or "tag_list" not in saved:
+        raise ValueError("Model pickle dictionary must contain 'model', 'feature_cols', and 'tag_list'.")
+
+    from inventory.db import save_ml_model_to_db, SessionLocal
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        meta_info = {
+            "feature_cols_count": len(saved.get("feature_cols", [])),
+            "tag_list_count": len(saved.get("tag_list", [])),
+            "model_type": type(saved.get("model")).__name__,
+        }
+        record = save_ml_model_to_db(
+            model_name="model_test_analysis",
+            model_bytes=model_bytes,
+            filename=filename,
+            meta_info=meta_info,
+            db=db,
+        )
+    finally:
+        if close_db:
+            db.close()
+
+    _MODEL_CACHE = saved
+    _MODEL_CACHE_SOURCE = "database"
+
+    try:
+        with open(MODEL_PATH, "wb") as f:
+            f.write(model_bytes)
+    except Exception as e:
+        print(f"[Predict] Local model file sync notice: {e}")
+
+    return {
+        "status": "success",
+        "message": "Model 'model_test_analysis' successfully uploaded and stored in database.",
+        "model_name": "model_test_analysis",
+        "filename": filename,
+        "size_bytes": len(model_bytes),
+        "feature_cols_count": len(saved["feature_cols"]),
+        "tag_list_count": len(saved["tag_list"]),
+        "model_type": type(saved["model"]).__name__,
+        "storage": "database (table: ml_models)",
+        "updated_at": str(record.updated_at),
+    }
+
+
+def get_prediction_model(db: Any = None, force_reload: bool = False) -> dict:
+    """
+    Retrieves the prediction model:
+    1. Returns in-memory cache if available.
+    2. Queries the database table `ml_models`.
+    3. Falls back to local filesystem `model_test_analysis.pkl` and auto-seeds database.
+    """
+    global _MODEL_CACHE, _MODEL_CACHE_SOURCE
+
+    if not force_reload and _MODEL_CACHE is not None:
+        return _MODEL_CACHE
+
+    # 1. Database
+    db_model = load_model_from_database(db=db)
+    if db_model is not None:
+        _MODEL_CACHE = db_model
+        _MODEL_CACHE_SOURCE = "database"
+        return _MODEL_CACHE
+
+    # 2. Local fallback & auto-seed
+    if MODEL_PATH.exists():
+        with open(MODEL_PATH, "rb") as f:
+            raw = f.read()
+            local_model = pickle.loads(raw)
+        print(f"[Predict] Loaded model from local file {MODEL_PATH}.")
+        _MODEL_CACHE = local_model
+        _MODEL_CACHE_SOURCE = "local_file"
+
+        try:
+            from inventory.db import save_ml_model_to_db, SessionLocal
+            s_db = SessionLocal()
+            try:
+                save_ml_model_to_db(
+                    model_name="model_test_analysis",
+                    model_bytes=raw,
+                    filename=MODEL_PATH.name,
+                    meta_info={
+                        "feature_cols_count": len(local_model.get("feature_cols", [])),
+                        "tag_list_count": len(local_model.get("tag_list", [])),
+                        "model_type": type(local_model.get("model")).__name__,
+                    },
+                    db=s_db,
+                )
+                print("[Predict] Auto-seeded local model_test_analysis.pkl into database table.")
+                _MODEL_CACHE_SOURCE = "database"
+            finally:
+                s_db.close()
+        except Exception as seed_err:
+            print(f"[Predict] Auto-seed notice: {seed_err}")
+
+        return _MODEL_CACHE
+
+    raise FileNotFoundError(
+        f"Model 'model_test_analysis' not found in database or at {MODEL_PATH}. "
+        "Please upload the model using the /predict/upload-model route."
+    )
 
 
 # ── 1. Text preprocessing ──────────────────────────────────────────────────────
@@ -232,7 +389,11 @@ def _indication(pct: float) -> str:
 
 # ── 5. Public entry point ──────────────────────────────────────────────────────
 
-def run_prediction(keywords: list[str], use_transformer: bool = True) -> dict:
+def run_prediction(
+    keywords: list[str],
+    use_transformer: bool = True,
+    db: Any = None,
+) -> dict:
     """
     Main orchestration function called by FastAPI.
 
@@ -292,16 +453,14 @@ def run_prediction(keywords: list[str], use_transformer: bool = True) -> dict:
             "rows_collected": len(analyzed),
         }
 
-    # ── Step 5: load model and forecast ───────────────────────────────────────
-    if not MODEL_PATH.exists():
+    # ── Step 5: load model from database and forecast ─────────────────────────
+    try:
+        saved = get_prediction_model(db=db)
+    except Exception as exc:
         return {
-            "error": f"Model file not found at {MODEL_PATH}. "
-                     "Please place model_test_analysis.pkl next to predict.py.",
+            "error": str(exc),
             "rows_collected": len(analyzed),
         }
-
-    with open(MODEL_PATH, "rb") as f:
-        saved = pickle.load(f)
 
     model        = saved["model"]
     feature_cols = saved["feature_cols"]
@@ -328,6 +487,7 @@ def run_prediction(keywords: list[str], use_transformer: bool = True) -> dict:
         "predicted_in_30_days":  round(d30, 2),
         "change_30d_pct":        round(chg_30, 1),
         "indication_30d":        _indication(chg_30),
+        "model_source":          _MODEL_CACHE_SOURCE,
         "forecast": forecast_df.assign(
             date=forecast_df["date"].astype(str)
         ).to_dict(orient="records"),

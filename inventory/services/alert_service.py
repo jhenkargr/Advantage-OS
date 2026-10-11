@@ -2,13 +2,13 @@
 
 from datetime import datetime
 import uuid
-from app.models.schemas import (
+from inventory.models.schemas import (
     AlertItem,
     SendWhatsAppRequest,
     SendWhatsAppResponse,
     AcknowledgeAlertRequest,
 )
-from app.services.inventory_service import InventoryService
+from inventory.services.inventory_service import InventoryService
 
 
 # Simulated persistent alert store

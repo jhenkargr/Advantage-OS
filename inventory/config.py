@@ -5,14 +5,37 @@ from pathlib import Path
 from pydantic import BaseModel
 
 # Project directory paths
-WORKSPACE_ROOT = Path(__file__).resolve().parent.parent.parent
-INVENTORY_DIR = WORKSPACE_ROOT / "inventory"
+INVENTORY_DIR = Path(__file__).resolve().parent
+WORKSPACE_ROOT = INVENTORY_DIR.parent
 DATA_DIR = INVENTORY_DIR / "data"
 MODELS_DIR = INVENTORY_DIR / "models"
 CATALOG_PATH = DATA_DIR / "product_catalog.csv"
 SALES_LOG_PATH = DATA_DIR / "sales_log.csv"
 DEMAND_MODEL_PATH = MODELS_DIR / "demand_regressor_expanded.pkl"
 STOCKOUT_MODEL_PATH = MODELS_DIR / "stockout_model_expanded.pkl"
+
+# Fallbacks if files are located elsewhere
+if not CATALOG_PATH.exists():
+    for candidate in [
+        WORKSPACE_ROOT / "inventory" / "data" / "product_catalog.csv",
+        Path(r"D:\major project\major project - Copy\inventory\data\product_catalog.csv"),
+    ]:
+        if candidate.exists():
+            CATALOG_PATH = candidate
+            DATA_DIR = candidate.parent
+            SALES_LOG_PATH = DATA_DIR / "sales_log.csv"
+            break
+
+if not DEMAND_MODEL_PATH.exists():
+    for candidate in [
+        WORKSPACE_ROOT / "inventory" / "models" / "demand_regressor_expanded.pkl",
+        Path(r"D:\major project\major project - Copy\inventory\models\demand_regressor_expanded.pkl"),
+    ]:
+        if candidate.exists():
+            DEMAND_MODEL_PATH = candidate
+            MODELS_DIR = candidate.parent
+            STOCKOUT_MODEL_PATH = MODELS_DIR / "stockout_model_expanded.pkl"
+            break
 
 # Receipts and uploads directory
 RECEIPTS_DIR = DATA_DIR / "receipts"

@@ -2,13 +2,13 @@
 
 from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from app.config import WORKSPACE_ROOT
-from app.models.schemas import (
+from inventory.config import WORKSPACE_ROOT, INVENTORY_DIR
+from inventory.models.schemas import (
     ScannedReceiptResponse,
     ApplyReceiptRequest,
     ApplyReceiptResponse,
 )
-from app.services.ocr_service import OCRService
+from inventory.services.ocr_service import OCRService
 
 router = APIRouter(prefix="/ocr", tags=["Retail Operations & OCR Ingestion"])
 

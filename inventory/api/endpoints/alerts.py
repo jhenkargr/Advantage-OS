@@ -1,13 +1,13 @@
 """Proactive Alerts and WhatsApp Notification API Endpoints."""
 
 from fastapi import APIRouter, HTTPException, Query
-from app.models.schemas import (
+from inventory.models.schemas import (
     AlertItem,
     SendWhatsAppRequest,
     SendWhatsAppResponse,
     AcknowledgeAlertRequest,
 )
-from app.services.alert_service import AlertService
+from inventory.services.alert_service import AlertService
 
 router = APIRouter(prefix="/alerts", tags=["Alerts & WhatsApp Notifications"])
 

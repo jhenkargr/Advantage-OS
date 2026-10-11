@@ -13,14 +13,31 @@ class ProductItem(BaseModel):
     category: str
     current_stock: int
     low_stock_threshold: int
+    unit_price: Optional[float] = 0.0
+    supplier_lead_time_days: Optional[int] = 3
+    reorder_quantity: Optional[int] = 20
 
 
 class ProductCreate(BaseModel):
-    product_id: str = Field(..., example="SKU041")
-    product_name: str = Field(..., example="Avocado Toast Spread 200g")
-    category: str = Field(..., example="F&B")
-    current_stock: int = Field(..., ge=0, example=30)
-    low_stock_threshold: int = Field(..., ge=0, example=10)
+    product_id: str = Field(..., example="SKU041", description="SKU identifier")
+    product_name: Optional[str] = Field(None, example="Avocado Toast Spread 200g", description="Product title")
+    category: Optional[str] = Field(None, example="F&B", description="Product category")
+    current_stock: Optional[int] = Field(None, ge=0, example=30, description="Available stock quantity")
+    low_stock_threshold: Optional[int] = Field(None, ge=0, example=10, description="Minimum threshold for low stock alert")
+    unit_price: Optional[float] = Field(None, ge=0.0, example=15.99, description="Retail selling price")
+    supplier_lead_time_days: Optional[int] = Field(None, ge=0, example=3, description="Supplier lead time in days")
+    reorder_quantity: Optional[int] = Field(None, ge=0, example=20, description="Standard reorder batch size")
+
+
+class ProductUpdate(BaseModel):
+    product_id: Optional[str] = Field(None, example="SKU041", description="SKU identifier (optional if provided in URL path)")
+    product_name: Optional[str] = Field(None, example="Avocado Toast Spread 200g", description="Updated product title")
+    category: Optional[str] = Field(None, example="F&B", description="Updated category")
+    current_stock: Optional[int] = Field(None, ge=0, example=30, description="Updated stock quantity")
+    low_stock_threshold: Optional[int] = Field(None, ge=0, example=10, description="Updated low stock alert threshold")
+    unit_price: Optional[float] = Field(None, ge=0.0, example=15.99, description="Updated unit price")
+    supplier_lead_time_days: Optional[int] = Field(None, ge=0, example=3, description="Updated supplier lead time in days")
+    reorder_quantity: Optional[int] = Field(None, ge=0, example=20, description="Updated reorder quantity")
 
 
 class StockUpdate(BaseModel):
@@ -275,3 +292,192 @@ class DashboardStatsResponse(BaseModel):
     top_emerging_trends: list[TrendItem]
     top_critical_skus: list[InventoryPredictionResponse]
     recent_alerts: list[AlertItem]
+
+
+# ---------------------------------------------------------------------------
+# CSV Upload & Stock Plan Schemas
+# ---------------------------------------------------------------------------
+class StockPlanItem(BaseModel):
+    product_id: str
+    product_name: str
+    avg_daily_demand: float
+    forecast_30d: float
+    current_stock: str
+    safety_stock: Optional[int] = None
+    reorder_point: Optional[int] = None
+    target_stock: Optional[int] = None
+    order_qty_now: Optional[int] = None
+    status: str
+    note: Optional[str] = None
+
+
+class StockPlanResponse(BaseModel):
+    status: str
+    total_items: int
+    understocked_count: int = 0
+    overstock_count: int = 0
+    ok_count: int = 0
+    csv_path: str
+    items: list[StockPlanItem] = []
+    data: list[StockPlanItem] = []
+
+
+class ProductUploadResponse(BaseModel):
+    status: str
+    message: str
+    filename: str
+    total_rows_parsed: int
+    inserted_count: int
+    updated_count: int
+    total_products_in_db: int
+    stock_plan_generated: bool = False
+    stock_plan_rows: int = 0
+    stock_plan_csv_path: Optional[str] = None
+    sample_products: list[dict] = []
+
+
+class SalesHistoryUploadResponse(BaseModel):
+    status: str
+    message: str
+    filename: str
+    total_rows_parsed: int
+    inserted_count: int
+    total_sales_logs_in_db: int
+    stock_plan_generated: bool = False
+    stock_plan_rows: int = 0
+    stock_plan_csv_path: Optional[str] = None
+    stock_plan_summary: list[StockPlanItem] = []
+
+
+# ---------------------------------------------------------------------------
+# Comprehensive Product Analytics & Visual Representations (Graphs)
+# ---------------------------------------------------------------------------
+
+class DailySalesDataPoint(BaseModel):
+    date: str
+    units_sold: int
+    revenue: float = 0.0
+    price: Optional[float] = None
+    stock_after: Optional[int] = None
+    channel: Optional[str] = "POS_STORE"
+    promotion_applied: Optional[bool] = False
+    trend_score: Optional[float] = None
+
+
+class TimelineChartDataset(BaseModel):
+    units_sold: list[int] = []
+    revenue: list[float] = []
+    stock_levels: list[Optional[int]] = []
+    trend_scores: list[Optional[float]] = []
+
+
+class TimelineChart(BaseModel):
+    title: str = "Daily Sales & Revenue Timeline"
+    chart_type: str = "line"
+    labels: list[str] = []
+    datasets: TimelineChartDataset = TimelineChartDataset()
+    data_points: list[DailySalesDataPoint] = []
+
+
+class CumulativeSalesChart(BaseModel):
+    title: str = "Cumulative Units & Revenue Growth"
+    chart_type: str = "area"
+    labels: list[str] = []
+    cumulative_units: list[int] = []
+    cumulative_revenue: list[float] = []
+
+
+class ChannelBreakdownItem(BaseModel):
+    channel: str
+    units_sold: int
+    revenue: float
+    percentage: float
+
+
+class ChannelBreakdownChart(BaseModel):
+    title: str = "Sales Distribution by Channel"
+    chart_type: str = "pie"
+    channels: list[ChannelBreakdownItem] = []
+
+
+class StockBenchmarkChart(BaseModel):
+    title: str = "Inventory Level vs Replenishment Benchmarks"
+    chart_type: str = "bar"
+    categories: list[str] = [
+        "Current Stock",
+        "Low Stock Threshold",
+        "Safety Stock",
+        "Reorder Point",
+        "Target Stock",
+    ]
+    values: list[Optional[int]] = []
+
+
+class ProjectedDepletionPoint(BaseModel):
+    day: int
+    date: str
+    projected_stock: float
+    safety_stock: Optional[int] = None
+    reorder_point: Optional[int] = None
+
+
+class ProjectedDepletionChart(BaseModel):
+    title: str = "30-Day Forward Stock Depletion Projection"
+    chart_type: str = "line"
+    days_until_stockout: Optional[int] = None
+    daily_run_rate: float = 0.0
+    projection: list[ProjectedDepletionPoint] = []
+
+
+class ProductChartsRepresentation(BaseModel):
+    timeline_chart: TimelineChart
+    cumulative_sales_chart: CumulativeSalesChart
+    channel_breakdown_chart: ChannelBreakdownChart
+    stock_benchmark_chart: StockBenchmarkChart
+    projected_depletion_chart: ProjectedDepletionChart
+
+
+class ProductSalesSummary(BaseModel):
+    total_records: int = 0
+    total_units_sold: int = 0
+    total_revenue: float = 0.0
+    avg_daily_sales: float = 0.0
+    sales_velocity_7d: float = 0.0
+    revenue_7d: float = 0.0
+    sales_velocity_30d: float = 0.0
+    revenue_30d: float = 0.0
+    min_daily_units: int = 0
+    max_daily_units: int = 0
+    peak_sales_date: Optional[str] = None
+    days_of_inventory_remaining: Optional[float] = None
+
+
+class ProductDetailStockPlan(BaseModel):
+    avg_daily_demand: float = 0.0
+    forecast_30d: float = 0.0
+    current_stock: int = 0
+    safety_stock: Optional[int] = None
+    reorder_point: Optional[int] = None
+    target_stock: Optional[int] = None
+    order_qty_now: Optional[int] = None
+    status: str = "OK"
+    note: Optional[str] = None
+    reorder_urgency: str = "OK"  # "CRITICAL", "HIGH", "MEDIUM", "LOW", "OK"
+
+
+class MLForecastInsights(BaseModel):
+    available: bool = False
+    predicted_7_day_demand: Optional[int] = None
+    stockout_probability: Optional[float] = None
+    recommended_order_quantity: Optional[int] = None
+    alert_level: Optional[str] = None
+
+
+class ProductFullAnalyticsResponse(BaseModel):
+    product: ProductItem
+    stock_status: str  # "OUT_OF_STOCK", "LOW_STOCK", "HEALTHY", "OVERSTOCKED"
+    stock_plan: ProductDetailStockPlan
+    sales_summary: ProductSalesSummary
+    charts: ProductChartsRepresentation
+    ml_forecast: MLForecastInsights
+

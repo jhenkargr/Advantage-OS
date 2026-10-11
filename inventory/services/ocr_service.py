@@ -8,15 +8,15 @@ import uuid
 from PIL import Image
 import pytesseract
 
-from app.config import TESSERACT_CMD, RECEIPTS_DIR
-from app.models.schemas import (
+from inventory.config import TESSERACT_CMD, RECEIPTS_DIR
+from inventory.models.schemas import (
     ScannedReceiptResponse,
     ScannedReceiptItem,
     ApplyReceiptRequest,
     ApplyReceiptResponse,
     ProductItem,
 )
-from app.services.inventory_service import InventoryService
+from inventory.services.inventory_service import InventoryService
 
 
 # Configure Tesseract binary path
