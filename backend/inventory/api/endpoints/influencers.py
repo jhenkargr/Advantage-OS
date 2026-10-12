@@ -317,3 +317,61 @@ def get_influencers_by_cluster(
 
     _CLUSTER_CACHE[cache_key] = res
     return res
+
+
+SME_TO_CLUSTER_MAP = {
+    "cafes": 10,
+    "cafe": 10,
+    "cafes_bakeries": 10,
+    "cafes_bakeries_and_dessert_shops": 10,
+    "bakery": 2,
+    "bakeries": 2,
+    "restaurants": 1,
+    "restaurant": 1,
+    "restaurants_cloud_kitchens": 1,
+    "restaurants_and_cloud_kitchens": 1,
+    "boutiques": 8,
+    "boutique": 8,
+    "boutiques_fashion": 8,
+    "boutiques_and_fashion_stores": 8,
+    "salons": 9,
+    "salon": 9,
+    "salons_beauty": 9,
+    "salons_and_beauty_studios": 9,
+    "gyms": 10,
+    "gym": 10,
+    "gyms_yoga": 10,
+    "gyms_and_yoga_studios": 10,
+    "gift": 4,
+    "gift_shop": 4,
+    "gift_decor": 4,
+    "gift_and_decor_shops": 4,
+    "electronics": 3,
+    "electronics_accessories": 3,
+    "electronics_and_accessory_shops": 3,
+    "d2c": 4,
+    "small_d2c": 4,
+    "small_d2c_and_home_based_sellers": 4,
+}
+
+
+@router.get(
+    "/sme/{sme_type}",
+    response_model=InfluencerClusterResponse,
+    summary="Get matching influencers by SME business type",
+)
+@router.get(
+    "/by-sme/{sme_type}",
+    response_model=InfluencerClusterResponse,
+    include_in_schema=False,
+)
+def get_influencers_by_sme(
+    sme_type: str,
+    bot_free_only: bool = Query(True, description="Exclude accounts flagged as bot/spam"),
+    limit: int = Query(100, ge=1, le=500, description="Max influencers to return"),
+    db: Session = Depends(get_db),
+) -> InfluencerClusterResponse:
+    sme_clean = sme_type.strip().lower().replace(" ", "_").replace("-", "_").replace(",", "")
+    cluster_id = SME_TO_CLUSTER_MAP.get(sme_clean, 10)
+    return get_influencers_by_cluster(cluster_id=cluster_id, bot_free_only=bot_free_only, limit=limit, db=db)
+

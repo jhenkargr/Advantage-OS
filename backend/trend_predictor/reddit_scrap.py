@@ -17,7 +17,9 @@ from dotenv import load_dotenv
 from scrapebadger import ScrapeBadger
 
 # ── Load API key from .env ────────────────────────────────────────────────────
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+_this_dir = os.path.dirname(__file__)
+load_dotenv(dotenv_path=os.path.join(_this_dir, ".env"))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(_this_dir), ".env"))
 _SCRAPEBADGER_API_KEY = os.getenv("SCRAPEBADGER_API_KEY", "")
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -52,9 +54,8 @@ def _estimate_likes(score: float, upvote_ratio: float) -> int:
 async def _async_scrape(keywords: list[str]) -> pd.DataFrame:
     """Async inner function — fetches posts for all keywords."""
     if not _SCRAPEBADGER_API_KEY:
-        raise EnvironmentError(
-            "SCRAPEBADGER_API_KEY is not set. Please add it to your .env file."
-        )
+        print("[Reddit] Warning: SCRAPEBADGER_API_KEY is not set. Returning empty dataset.")
+        return pd.DataFrame(columns=["text", "likes", "comments", "date"])
 
     all_posts: list[dict] = []
 

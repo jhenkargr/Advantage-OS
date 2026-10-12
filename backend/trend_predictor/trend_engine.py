@@ -134,6 +134,50 @@ SME_PROFILES = {
                     "handmade gifts"],
         "trends": ["gift hamper", "home decor", "candles", "personalised gifts", "diwali decor"],
     },
+    "electronics": {
+        "seeds": ["gadgets", "earbuds", "smart watch", "phone case", "chargers",
+                  "headphones", "bluetooth speaker", "accessories", "power bank", "cable organizer"],
+        "subreddits": ["bangalore", "IndianGaming", "gadgets", "android"],
+        "youtube": ["tech haul {city}", "best gadgets india", "budget accessories", "smart gadgets"],
+        "trends": ["earbuds", "smartwatch", "gadgets", "power bank", "phone case"],
+    },
+    "d2c": {
+        "seeds": ["handmade", "scented candles", "artisan", "organic skincare", "thrift store",
+                  "clay pottery", "custom jewellery", "tote bag", "home decor", "small business"],
+        "subreddits": ["bangalore", "smallbusiness", "crafts", "IndianFashionAddicts"],
+        "youtube": ["small business vlog india", "d2c packaging", "handcrafted haul {city}", "diy decor"],
+        "trends": ["scented candles", "handmade jewelry", "tote bag", "artisan craft", "organic skincare"],
+    },
+}
+
+SME_ALIASES = {
+    "cafes": "cafe",
+    "cafes_bakeries": "cafe",
+    "cafes_bakeries_and_dessert_shops": "cafe",
+    "bakery": "bakery",
+    "bakeries": "bakery",
+    "restaurants": "restaurant",
+    "restaurants_cloud_kitchens": "restaurant",
+    "restaurants_and_cloud_kitchens": "restaurant",
+    "boutiques": "boutique",
+    "boutiques_fashion": "boutique",
+    "boutiques_and_fashion_stores": "boutique",
+    "fashion": "boutique",
+    "salons": "salon",
+    "salons_beauty": "salon",
+    "salons_and_beauty_studios": "salon",
+    "gyms": "gym",
+    "gyms_yoga": "gym",
+    "gyms_and_yoga_studios": "gym",
+    "gift": "gift_shop",
+    "gift_decor": "gift_shop",
+    "gift_and_decor_shops": "gift_shop",
+    "decor": "gift_shop",
+    "electronics_accessories": "electronics",
+    "electronics_and_accessory_shops": "electronics",
+    "small_d2c": "d2c",
+    "small_d2c_and_home_based_sellers": "d2c",
+    "d2c_sellers": "d2c",
 }
 
 # Neighbourhoods used for the local filter (extend for other cities)
@@ -833,12 +877,18 @@ def process_trend_analysis(
 
     if sources is None:
         sources = ["reddit", "youtube", "trends"]
-    sme_clean = sme.strip().lower()
+    sme_clean = sme.strip().lower().replace(" ", "_").replace("-", "_")
+    sme_clean = SME_ALIASES.get(sme_clean, sme_clean)
     if sme_clean not in SME_PROFILES:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unknown SME '{sme}'. Allowed categories: {list(SME_PROFILES.keys())}",
-        )
+        # fuzzy match or default
+        matched = next((k for k in SME_PROFILES if k in sme_clean or sme_clean in k), None)
+        if matched:
+            sme_clean = matched
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown SME '{sme}'. Allowed categories: {list(SME_PROFILES.keys())}",
+            )
 
     # 1. Check Database First ({sme}_trends table)
     if not refresh:

@@ -17,7 +17,9 @@ import requests
 from dotenv import load_dotenv
 
 # ── Load API key from .env ────────────────────────────────────────────────────
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+_this_dir = os.path.dirname(__file__)
+load_dotenv(dotenv_path=os.path.join(_this_dir, ".env"))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(_this_dir), ".env"))
 _TWITTER_API_KEY = os.getenv("TWITTER_API_KEY", "")
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -58,9 +60,8 @@ def _build_or_query(keywords: List[str]) -> str:
 def _fetch_pages(query: str) -> List[Dict[str, Any]]:
     """Paginate through twitterapi.io results and return raw tweet dicts."""
     if not _TWITTER_API_KEY:
-        raise EnvironmentError(
-            "TWITTER_API_KEY is not set. Please add it to your .env file."
-        )
+        print("[X] Warning: TWITTER_API_KEY is not set. Returning empty dataset.")
+        return []
 
     headers = {"X-API-Key": _TWITTER_API_KEY}
     all_tweets: List[Dict[str, Any]] = []

@@ -123,13 +123,60 @@ class InventoryService:
             raise ValueError(f"Catalog is missing columns: {sorted(missing)}")
         return df
 
-    @staticmethod
-    def get_sales_df() -> pd.DataFrame:
+    @classmethod
+    def get_sales_df(cls, db: Optional[Any] = None) -> pd.DataFrame:
+        close_session = False
+        if db is None:
+            try:
+                from inventory.db import SessionLocal
+                db = SessionLocal()
+                close_session = True
+            except Exception:
+                db = None
+
+        if db is not None:
+            try:
+                from inventory.db import SalesLog, ensure_tables
+                ensure_tables(db.get_bind())
+                logs = db.query(SalesLog).all()
+                if logs:
+                    records = [
+                        {
+                            "product_id": str(l.product_id),
+                            "date": pd.to_datetime(l.date),
+                            "units_sold": int(l.units_sold or 0),
+                            "price": float(l.price or 0.0),
+                            "channel": str(l.channel or "POS_STORE"),
+                            "stock_after": None,
+                            "trend_score": 1.0,
+                        }
+                        for l in logs
+                    ]
+                    return pd.DataFrame(records)
+            except Exception as exc:
+                print(f"[InventoryService] DB get_sales_df notice: {exc}")
+            finally:
+                if close_session:
+                    db.close()
+
+        # Check candidate paths
+        for candidate in [
+            Path(r"D:\major project\Backend\virenv\Scripts\sales_history.csv"),
+            SALES_LOG_PATH,
+        ]:
+            if candidate.is_file():
+                df = pd.read_csv(candidate)
+                df["date"] = pd.to_datetime(df["date"])
+                if "units_sold" not in df.columns and "item_sold" in df.columns:
+                    df["units_sold"] = df["item_sold"]
+                return df
+
         if not SALES_LOG_PATH.is_file():
             raise FileNotFoundError(f"Sales log file not found: {SALES_LOG_PATH}")
         df = pd.read_csv(SALES_LOG_PATH)
         df["date"] = pd.to_datetime(df["date"])
         return df
+
 
     @classmethod
     def _sync_to_csv(cls, payload: dict):
@@ -406,9 +453,24 @@ class InventoryService:
 
     @classmethod
     def compute_features(cls, product_id: str, sales_df: pd.DataFrame) -> dict:
-        prod = sales_df[sales_df["product_id"] == product_id].copy()
+        pid = str(product_id).strip()
+        prod = sales_df[sales_df["product_id"].astype(str).str.strip() == pid].copy()
+
+        # Get catalog item current stock for fallback
+        catalog_stock = 10.0
+        try:
+            cat_item = cls.get_product(pid)
+            catalog_stock = float(cat_item.current_stock or 0.0)
+        except Exception:
+            pass
+
         if prod.empty:
-            raise ValueError(f"Product '{product_id}' not found in sales history.")
+            return {
+                "avg_daily_sales_7d": 1.5,
+                "sales_std_7d": 0.5,
+                "current_stock": catalog_stock,
+                "trend_score": 1.0,
+            }
 
         prod = prod.sort_values("date")
         if len(prod) < 7:
@@ -416,8 +478,8 @@ class InventoryService:
             avg_daily_sales = float(prod["units_sold"].mean()) if not prod.empty else 1.0
             sales_std = float(prod["units_sold"].std()) if len(prod) > 1 else 0.0
             latest_row = prod.iloc[-1]
-            current_stock = float(latest_row.get("stock_after", 10.0))
-            trend_score = float(latest_row.get("trend_score", 1.0))
+            current_stock = float(latest_row.get("stock_after")) if pd.notna(latest_row.get("stock_after")) else catalog_stock
+            trend_score = float(latest_row.get("trend_score")) if pd.notna(latest_row.get("trend_score")) else 1.0
         else:
             latest_7 = prod.tail(7)
             avg_daily_sales = float(latest_7["units_sold"].mean())
@@ -426,26 +488,27 @@ class InventoryService:
                 sales_std = 0.0
 
             latest_row = prod.iloc[-1]
-            current_stock = float(latest_row["stock_after"])
-            trend_score = float(latest_row["trend_score"])
+            current_stock = float(latest_row.get("stock_after")) if pd.notna(latest_row.get("stock_after")) else catalog_stock
+            trend_score = float(latest_row.get("trend_score")) if pd.notna(latest_row.get("trend_score")) else 1.0
 
         return {
-            "avg_daily_sales_7d": avg_daily_sales,
-            "sales_std_7d": sales_std,
+            "avg_daily_sales_7d": round(avg_daily_sales, 2),
+            "sales_std_7d": round(sales_std, 2),
             "current_stock": current_stock,
             "trend_score": trend_score,
         }
 
     @classmethod
     def predict_sku(cls, product_id: str) -> InventoryPredictionResponse:
+        pid = str(product_id).strip()
         catalog_df = cls.get_catalog_df()
-        match = catalog_df[catalog_df["product_id"] == product_id]
+        match = catalog_df[catalog_df["product_id"].astype(str).str.strip() == pid]
         if match.empty:
-            raise ValueError(f"Unknown product_id: '{product_id}'")
+            raise ValueError(f"Unknown product_id: '{pid}'")
 
         catalog_row = match.iloc[0]
         sales_df = cls.get_sales_df()
-        features = cls.compute_features(product_id, sales_df)
+        features = cls.compute_features(pid, sales_df)
 
         feature_frame = pd.DataFrame([features], columns=FEATURE_COLS)
         demand_model, stockout_model = load_ml_models()
@@ -455,7 +518,7 @@ class InventoryService:
 
         # Current stock from latest observation / catalog
         current_stock = int(features["current_stock"])
-        low_stock_threshold = int(catalog_row["low_stock_threshold"])
+        low_stock_threshold = int(catalog_row.get("low_stock_threshold", 10) or 10)
         safety_stock = round(features["avg_daily_sales_7d"] * 2)
 
         recommended_order_quantity = max(
@@ -474,7 +537,7 @@ class InventoryService:
             alert_level = "NONE"
 
         return InventoryPredictionResponse(
-            product_id=str(product_id),
+            product_id=pid,
             product_name=str(catalog_row["product_name"]),
             category=str(catalog_row["category"]),
             current_stock=current_stock,

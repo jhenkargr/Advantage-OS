@@ -33,7 +33,10 @@ from sqlalchemy import (
 )
 
 _HERE = Path(__file__).resolve().parent
-load_dotenv(dotenv_path=_HERE / ".env")
+if (_HERE / ".env").exists():
+    load_dotenv(dotenv_path=_HERE / ".env")
+elif (_HERE.parent / ".env").exists():
+    load_dotenv(dotenv_path=_HERE.parent / ".env")
 
 _ENGINE = None
 _METADATA = MetaData()
@@ -45,22 +48,27 @@ def get_db_engine():
     if _ENGINE is not None:
         return _ENGINE
 
-    url = os.getenv("DATABASE_URL")
-    if not url:
-        url = os.getenv("DATABASE_URL_UNPOOLED")
+    urls_to_try = []
+    for var in ("DATABASE_URL", "DATABASE_URL_UNPOOLED"):
+        val = os.getenv(var)
+        if val and val not in urls_to_try:
+            urls_to_try.append(val)
 
-    if url and url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    for raw_url in urls_to_try:
+        url = raw_url
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
-    if url:
         try:
-            eng = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
+            eng = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 15})
             with eng.connect() as conn:
                 conn.execute(select(1))
             _ENGINE = eng
             return _ENGINE
         except Exception as exc:
-            print(f"[trend_db] Neon PostgreSQL unavailable ({exc}). Using SQLite fallback.")
+            print(f"[trend_db] Connection attempt to {raw_url.split('@')[-1] if '@' in raw_url else 'URL'} notice: {exc}. Trying next...")
+
+    print(f"[trend_db] Neon PostgreSQL unavailable. Using SQLite fallback.")
 
     # SQLite fallback
     sqlite_dir = _HERE / "inventory" / "data"

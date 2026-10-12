@@ -54,7 +54,7 @@ def _create_db_engine():
         if url.startswith("postgresql://"):
             url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
         try:
-            eng = create_engine(url, pool_pre_ping=True, pool_recycle=300, connect_args={"connect_timeout": 5})
+            eng = create_engine(url, pool_pre_ping=True, pool_recycle=300, connect_args={"connect_timeout": 15})
             from sqlalchemy import text
             with eng.connect() as conn:
                 conn.execute(text("SELECT 1"))
