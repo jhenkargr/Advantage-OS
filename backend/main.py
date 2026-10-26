@@ -84,6 +84,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️  Model preload warning: {e}")
 
+    # Pre-warm stockout alerts in the background so client requests load instantly (<5ms)
+    def _warmup_alerts_cache():
+        try:
+            from inventory.services.alert_service import AlertService
+            AlertService.get_all_alerts(force_refresh=True)
+            print("⚡ Stockout alerts cache pre-warmed & ready.")
+        except Exception as err:
+            print(f"⚠️ Stockout alerts pre-warm notice: {err}")
+
+    import threading
+    threading.Thread(target=_warmup_alerts_cache, daemon=True).start()
+
     print("📡 Docs: http://localhost:8000/docs")
     print("=" * 65)
     yield

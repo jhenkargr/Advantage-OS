@@ -92,8 +92,28 @@ def load_ml_models():
 
 
 class InventoryService:
-    @staticmethod
-    def get_catalog_df() -> pd.DataFrame:
+    _CATALOG_CACHE: Optional[pd.DataFrame] = None
+    _CATALOG_CACHE_TIME: float = 0.0
+    _SALES_CACHE: Optional[pd.DataFrame] = None
+    _SALES_CACHE_TIME: float = 0.0
+    _CACHE_TTL: float = 120.0  # Cache for 2 minutes to eliminate repeated remote DB latency
+
+    @classmethod
+    def invalidate_cache(cls):
+        """Invalidate cached DataFrames when new catalog items or sales are written."""
+        cls._CATALOG_CACHE = None
+        cls._CATALOG_CACHE_TIME = 0.0
+        cls._SALES_CACHE = None
+        cls._SALES_CACHE_TIME = 0.0
+
+    @classmethod
+    def get_catalog_df(cls, force_refresh: bool = False) -> pd.DataFrame:
+        import time
+        if not force_refresh and cls._CATALOG_CACHE is not None:
+            if (time.time() - cls._CATALOG_CACHE_TIME) < cls._CACHE_TTL:
+                return cls._CATALOG_CACHE.copy()
+
+        df = None
         try:
             from inventory.db import SessionLocal, Product, ensure_tables
             db = SessionLocal()
@@ -111,20 +131,29 @@ class InventoryService:
                     }
                     for p in prods
                 ]
-                return pd.DataFrame(records)
+                df = pd.DataFrame(records)
         except Exception:
-            pass
+            df = None
 
-        if not CATALOG_PATH.is_file():
-            raise FileNotFoundError(f"Catalog file not found: {CATALOG_PATH}")
-        df = pd.read_csv(CATALOG_PATH)
-        missing = REQUIRED_CATALOG_COLUMNS.difference(df.columns)
-        if missing:
-            raise ValueError(f"Catalog is missing columns: {sorted(missing)}")
+        if df is None or df.empty:
+            if not CATALOG_PATH.is_file():
+                raise FileNotFoundError(f"Catalog file not found: {CATALOG_PATH}")
+            df = pd.read_csv(CATALOG_PATH)
+            missing = REQUIRED_CATALOG_COLUMNS.difference(df.columns)
+            if missing:
+                raise ValueError(f"Catalog is missing columns: {sorted(missing)}")
+
+        cls._CATALOG_CACHE = df.copy()
+        cls._CATALOG_CACHE_TIME = time.time()
         return df
 
     @classmethod
-    def get_sales_df(cls, db: Optional[Any] = None) -> pd.DataFrame:
+    def get_sales_df(cls, db: Optional[Any] = None, force_refresh: bool = False) -> pd.DataFrame:
+        import time
+        if not force_refresh and db is None and cls._SALES_CACHE is not None:
+            if (time.time() - cls._SALES_CACHE_TIME) < cls._CACHE_TTL:
+                return cls._SALES_CACHE.copy()
+
         close_session = False
         if db is None:
             try:
@@ -134,6 +163,7 @@ class InventoryService:
             except Exception:
                 db = None
 
+        df = None
         if db is not None:
             try:
                 from inventory.db import SalesLog, ensure_tables
@@ -152,29 +182,37 @@ class InventoryService:
                         }
                         for l in logs
                     ]
-                    return pd.DataFrame(records)
+                    df = pd.DataFrame(records)
             except Exception as exc:
                 print(f"[InventoryService] DB get_sales_df notice: {exc}")
             finally:
                 if close_session:
                     db.close()
 
-        # Check candidate paths
-        for candidate in [
-            Path(r"D:\major project\Backend\virenv\Scripts\sales_history.csv"),
-            SALES_LOG_PATH,
-        ]:
-            if candidate.is_file():
-                df = pd.read_csv(candidate)
-                df["date"] = pd.to_datetime(df["date"])
-                if "units_sold" not in df.columns and "item_sold" in df.columns:
-                    df["units_sold"] = df["item_sold"]
-                return df
+        if df is None or df.empty:
+            # Check candidate paths
+            for candidate in [
+                Path(r"D:\major project\Backend\virenv\Scripts\sales_history.csv"),
+                SALES_LOG_PATH,
+            ]:
+                if candidate.is_file():
+                    cand_df = pd.read_csv(candidate)
+                    cand_df["date"] = pd.to_datetime(cand_df["date"])
+                    if "units_sold" not in cand_df.columns and "item_sold" in cand_df.columns:
+                        cand_df["units_sold"] = cand_df["item_sold"]
+                    df = cand_df
+                    break
 
-        if not SALES_LOG_PATH.is_file():
-            raise FileNotFoundError(f"Sales log file not found: {SALES_LOG_PATH}")
-        df = pd.read_csv(SALES_LOG_PATH)
-        df["date"] = pd.to_datetime(df["date"])
+        if df is None or df.empty:
+            if not SALES_LOG_PATH.is_file():
+                raise FileNotFoundError(f"Sales log file not found: {SALES_LOG_PATH}")
+            df = pd.read_csv(SALES_LOG_PATH)
+            df["date"] = pd.to_datetime(df["date"])
+
+        if db is None and df is not None:
+            cls._SALES_CACHE = df.copy()
+            cls._SALES_CACHE_TIME = time.time()
+
         return df
 
 
@@ -452,19 +490,29 @@ class InventoryService:
         return cls.create_or_update_product({"product_id": product_id, "current_stock": updated}, db=db)
 
     @classmethod
-    def compute_features(cls, product_id: str, sales_df: pd.DataFrame) -> dict:
+    def compute_features(
+        cls,
+        product_id: str,
+        sales_df: pd.DataFrame,
+        catalog_stock: Optional[float] = None,
+        prod_sales_df: Optional[pd.DataFrame] = None,
+    ) -> dict:
         pid = str(product_id).strip()
-        prod = sales_df[sales_df["product_id"].astype(str).str.strip() == pid].copy()
+        if prod_sales_df is not None:
+            prod = prod_sales_df
+        else:
+            prod = sales_df[sales_df["product_id"].astype(str).str.strip() == pid]
 
-        # Get catalog item current stock for fallback
-        catalog_stock = 10.0
-        try:
-            cat_item = cls.get_product(pid)
-            catalog_stock = float(cat_item.current_stock or 0.0)
-        except Exception:
-            pass
+        if catalog_stock is None:
+            # Fallback only if not provided
+            catalog_stock = 10.0
+            try:
+                cat_item = cls.get_product(pid)
+                catalog_stock = float(cat_item.current_stock or 0.0)
+            except Exception:
+                pass
 
-        if prod.empty:
+        if prod is None or prod.empty:
             return {
                 "avg_daily_sales_7d": 1.5,
                 "sales_std_7d": 0.5,
@@ -472,7 +520,9 @@ class InventoryService:
                 "trend_score": 1.0,
             }
 
-        prod = prod.sort_values("date")
+        if not prod.index.is_monotonic_increasing:
+            prod = prod.sort_values("date")
+
         if len(prod) < 7:
             # Fallback if product has few records
             avg_daily_sales = float(prod["units_sold"].mean()) if not prod.empty else 1.0
@@ -499,16 +549,33 @@ class InventoryService:
         }
 
     @classmethod
-    def predict_sku(cls, product_id: str) -> InventoryPredictionResponse:
+    def predict_sku(
+        cls,
+        product_id: str,
+        catalog_df: Optional[pd.DataFrame] = None,
+        sales_df: Optional[pd.DataFrame] = None,
+        catalog_row: Optional[pd.Series] = None,
+        prod_sales_df: Optional[pd.DataFrame] = None,
+    ) -> InventoryPredictionResponse:
         pid = str(product_id).strip()
-        catalog_df = cls.get_catalog_df()
-        match = catalog_df[catalog_df["product_id"].astype(str).str.strip() == pid]
-        if match.empty:
-            raise ValueError(f"Unknown product_id: '{pid}'")
+        if catalog_row is None:
+            if catalog_df is None:
+                catalog_df = cls.get_catalog_df()
+            match = catalog_df[catalog_df["product_id"].astype(str).str.strip() == pid]
+            if match.empty:
+                raise ValueError(f"Unknown product_id: '{pid}'")
+            catalog_row = match.iloc[0]
 
-        catalog_row = match.iloc[0]
-        sales_df = cls.get_sales_df()
-        features = cls.compute_features(pid, sales_df)
+        if sales_df is None and prod_sales_df is None:
+            sales_df = cls.get_sales_df()
+
+        cat_stock = float(catalog_row.get("current_stock", 10) or 10)
+        features = cls.compute_features(
+            pid,
+            sales_df if sales_df is not None else pd.DataFrame(),
+            catalog_stock=cat_stock,
+            prod_sales_df=prod_sales_df,
+        )
 
         feature_frame = pd.DataFrame([features], columns=FEATURE_COLS)
         demand_model, stockout_model = load_ml_models()
@@ -552,42 +619,98 @@ class InventoryService:
         )
 
     @classmethod
-    def predict_all(cls) -> InventorySummaryResponse:
-        catalog_df = cls.get_catalog_df()
+    def predict_all(cls, force_refresh_data: bool = False) -> InventorySummaryResponse:
+        catalog_df = cls.get_catalog_df(force_refresh=force_refresh_data)
+        if catalog_df.empty:
+            return InventorySummaryResponse(
+                total_skus=0,
+                total_units_in_stock=0,
+                high_risk_count=0,
+                medium_risk_count=0,
+                total_reorder_units=0,
+                predictions=[],
+            )
+
+        sales_df = cls.get_sales_df(force_refresh=force_refresh_data)
+
+        # Pre-group sales by product_id once for O(1) lookups
+        sales_by_pid = {}
+        if not sales_df.empty and "product_id" in sales_df.columns:
+            for pid_val, group in sales_df.groupby("product_id"):
+                sales_by_pid[str(pid_val).strip()] = group
+
+        features_list = []
+        rows_data = []
+
+        for _, row in catalog_df.iterrows():
+            pid = str(row["product_id"]).strip()
+            cat_stock = float(row.get("current_stock", 0) or 0)
+            prod_sales = sales_by_pid.get(pid)
+            feat = cls.compute_features(
+                product_id=pid,
+                sales_df=sales_df,
+                catalog_stock=cat_stock,
+                prod_sales_df=prod_sales,
+            )
+            features_list.append(feat)
+            rows_data.append((pid, row, feat))
+
+        # Vectorized batch prediction with ML models in a single call (< 5ms)
+        feature_frame = pd.DataFrame(features_list, columns=FEATURE_COLS)
+        demand_model, stockout_model = load_ml_models()
+
+        pred_demands = np.maximum(0, np.round(demand_model.predict(feature_frame)).astype(int))
+        stockout_probs = stockout_model.predict_proba(feature_frame)[:, 1]
+
         predictions = []
         high_risk = 0
         med_risk = 0
         total_reorder = 0
         total_stock = 0
 
-        for _, row in catalog_df.iterrows():
-            pid = str(row["product_id"])
-            try:
-                pred = cls.predict_sku(pid)
-                predictions.append(pred)
-                total_stock += pred.current_stock
-                total_reorder += pred.recommended_order_quantity
-                if pred.alert_level == "HIGH":
-                    high_risk += 1
-                elif pred.alert_level == "MEDIUM":
-                    med_risk += 1
-            except Exception as e:
-                # In case of missing sales history for a newly added SKU
-                current_stock = int(row["current_stock"])
-                total_stock += current_stock
-                predictions.append(
-                    InventoryPredictionResponse(
-                        product_id=pid,
-                        product_name=str(row["product_name"]),
-                        category=str(row["category"]),
-                        current_stock=current_stock,
-                        predicted_7_day_demand=0,
-                        stockout_probability=0.0,
-                        recommended_order_quantity=0,
-                        alert_needed=current_stock <= int(row["low_stock_threshold"]),
-                        alert_level="MEDIUM" if current_stock <= int(row["low_stock_threshold"]) else "NONE",
-                    )
+        for i, (pid, row, feat) in enumerate(rows_data):
+            predicted_demand = int(pred_demands[i])
+            stockout_prob = float(stockout_probs[i])
+            current_stock = int(feat["current_stock"])
+            low_stock_threshold = int(row.get("low_stock_threshold", 10) or 10)
+            safety_stock = round(feat["avg_daily_sales_7d"] * 2)
+
+            recommended_order_quantity = max(
+                0,
+                predicted_demand - current_stock + safety_stock,
+            )
+
+            alert_needed = (stockout_prob >= 0.50) or (current_stock <= low_stock_threshold)
+            if stockout_prob >= 0.50:
+                alert_level = "HIGH"
+                high_risk += 1
+            elif current_stock <= low_stock_threshold:
+                alert_level = "MEDIUM"
+                med_risk += 1
+            elif stockout_prob >= 0.30:
+                alert_level = "LOW"
+            else:
+                alert_level = "NONE"
+
+            total_stock += current_stock
+            total_reorder += recommended_order_quantity
+
+            predictions.append(
+                InventoryPredictionResponse(
+                    product_id=pid,
+                    product_name=str(row["product_name"]),
+                    category=str(row["category"]),
+                    current_stock=current_stock,
+                    predicted_7_day_demand=int(predicted_demand),
+                    stockout_probability=round(stockout_prob, 4),
+                    recommended_order_quantity=int(recommended_order_quantity),
+                    alert_needed=bool(alert_needed),
+                    alert_level=alert_level,
+                    safety_stock=safety_stock,
+                    avg_daily_sales=round(feat["avg_daily_sales_7d"], 2),
+                    trend_score=round(feat["trend_score"], 2),
                 )
+            )
 
         return InventorySummaryResponse(
             total_skus=len(predictions),

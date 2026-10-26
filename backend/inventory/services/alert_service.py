@@ -21,7 +21,7 @@ class AlertService:
         """Aggregate high and medium risk inventory items into actionable alerts."""
         global _ALERTS_STORE
         if not _ALERTS_STORE or force_refresh:
-            predictions_summary = InventoryService.predict_all()
+            predictions_summary = InventoryService.predict_all(force_refresh_data=force_refresh)
             new_alerts: list[AlertItem] = []
             for pred in predictions_summary.predictions:
                 if pred.alert_needed:

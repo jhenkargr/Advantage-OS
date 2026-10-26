@@ -350,18 +350,26 @@ export const InventoryPage: React.FC = () => {
               </p>
             </div>
 
-            <button
-              onClick={() => loadAlerts(true)}
-              disabled={alertsRefreshing}
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '0.45rem 0.9rem' }}
-            >
-              <RefreshCw size={14} className={alertsRefreshing ? 'animate-spin' : ''} />
-              {alertsRefreshing ? 'Re-evaluating Models...' : 'Re-evaluate All Alerts'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              {(alertsLoading || alertsRefreshing) && (
+                <span style={{ fontSize: '0.75rem', color: '#67e8f9', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <RefreshCw size={12} className="animate-spin" />
+                  Updating ML probabilities...
+                </span>
+              )}
+              <button
+                onClick={() => loadAlerts(true)}
+                disabled={alertsRefreshing || alertsLoading}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '0.45rem 0.9rem' }}
+              >
+                <RefreshCw size={14} className={alertsRefreshing ? 'animate-spin' : ''} />
+                {alertsRefreshing ? 'Re-evaluating Models...' : 'Re-evaluate All Alerts'}
+              </button>
+            </div>
           </div>
 
-          {alertsLoading ? (
+          {(alertsLoading && displayAlerts.length === 0) ? (
             <LoadingSkeleton type="stats" />
           ) : displayAlerts.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#10b981' }}>
