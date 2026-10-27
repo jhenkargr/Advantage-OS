@@ -1,33 +1,38 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/image_generation': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/generate': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/predict': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/health': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const backendTarget = env.VITE_API_BASE_URL || env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
+
+  return {
+    plugins: [react()],
+    server: {
+      port: 5173,
+      proxy: {
+        '/api': {
+          target: backendTarget,
+          changeOrigin: true,
+        },
+        '/image_generation': {
+          target: backendTarget,
+          changeOrigin: true,
+        },
+        '/generate': {
+          target: backendTarget,
+          changeOrigin: true,
+        },
+        '/predict': {
+          target: backendTarget,
+          changeOrigin: true,
+        },
+        '/health': {
+          target: backendTarget,
+          changeOrigin: true,
+        },
       },
     },
-  },
+  };
 })
 

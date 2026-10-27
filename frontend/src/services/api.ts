@@ -18,10 +18,23 @@ import type {
   TrendPredictResult,
 } from '../types/api';
 
-// Use environment variable if set, otherwise relative path (handled by Vite proxy), with localhost fallback
-const BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined 
-  ? import.meta.env.VITE_API_BASE_URL 
-  : '';
+// Use environment variable if set (VITE_API_BASE_URL or VITE_BACKEND_URL), otherwise relative path for Vite dev proxy
+const RAW_BASE_URL = 
+  import.meta.env.VITE_API_BASE_URL ?? 
+  import.meta.env.VITE_BACKEND_URL ?? 
+  import.meta.env.VITE_API_URL ?? 
+  '';
+
+// Normalize BASE_URL by stripping any trailing slash
+export const BASE_URL = RAW_BASE_URL.replace(/\/+$/, '');
+
+/**
+ * Builds a clean, fully-qualified API URL using the configured backend base URL
+ */
+export function buildApiUrl(endpoint: string): string {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${BASE_URL}${cleanEndpoint}`;
+}
 
 /**
  * Custom API Error containing status code and backend error details
@@ -45,7 +58,7 @@ async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${BASE_URL}${endpoint}`;
+  const url = buildApiUrl(endpoint);
   const defaultHeaders: Record<string, string> = {
     Accept: 'application/json',
   };
@@ -262,7 +275,7 @@ export async function generateTextToImage(
   if (options.seed !== undefined) formData.append('seed', String(options.seed));
   if (options.negative_prompt) formData.append('negative_prompt', options.negative_prompt);
 
-  const url = `${BASE_URL}/image_generation/text2img`;
+  const url = buildApiUrl('/image_generation/text2img');
   const response = await fetch(url, {
     method: 'POST',
     body: formData,
@@ -301,7 +314,7 @@ export async function generateImageToImage(
   formData.append('reference_image', referenceImage, 'reference.png');
   formData.append('seed', String(seed));
 
-  const url = `${BASE_URL}/image_generation/img2img`;
+  const url = buildApiUrl('/image_generation/img2img');
   const response = await fetch(url, {
     method: 'POST',
     body: formData,
@@ -339,7 +352,7 @@ export async function generateCaption(
   formData.append('description', description);
   formData.append('tone', tone);
 
-  const url = `${BASE_URL}/image_generation/caption`;
+  const url = buildApiUrl('/image_generation/caption');
   const response = await fetch(url, {
     method: 'POST',
     body: formData,
@@ -425,4 +438,70 @@ export async function acknowledgeAlert(
     body: JSON.stringify({ action, notes }),
   });
 }
+
+// ── 6. CSV Uploads & Model Operations ────────────────────────────────────────
+
+/**
+ * Uploads products catalog CSV directly to backend database.
+ * Route: POST /api/products/upload-csv
+ */
+export async function uploadProductsCsv(
+  file: File,
+  replaceAll: boolean = false,
+  recalculateStockPlan: boolean = true
+): Promise<unknown> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('replace_all', String(replaceAll));
+  formData.append('recalculate_stock_plan', String(recalculateStockPlan));
+  return request<unknown>('/api/products/upload-csv', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+/**
+ * Uploads sales transaction history CSV directly to backend database.
+ * Route: POST /api/sales-history/upload-csv
+ */
+export async function uploadSalesHistoryCsv(
+  file: File,
+  replaceAll: boolean = false,
+  recalculateStockPlan: boolean = true
+): Promise<unknown> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('replace_all', String(replaceAll));
+  formData.append('recalculate_stock_plan', String(recalculateStockPlan));
+  return request<unknown>('/api/sales-history/upload-csv', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+/**
+ * Uploads influencers dataset CSV.
+ * Route: POST /api/influencers/upload-csv
+ */
+export async function uploadInfluencersCsv(
+  file: File,
+  replaceAll: boolean = false
+): Promise<unknown> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('replace_all', String(replaceAll));
+  return request<unknown>('/api/influencers/upload-csv', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+/**
+ * Checks the status of the ML prediction models.
+ * Route: GET /predict/model-status
+ */
+export async function fetchModelStatus(): Promise<unknown> {
+  return request<unknown>('/predict/model-status');
+}
+
 
