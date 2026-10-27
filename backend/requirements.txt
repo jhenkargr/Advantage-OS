@@ -11,16 +11,19 @@ python-multipart>=0.0.9
 python-dotenv>=1.0.1
 httpx>=0.27.0
 requests>=2.31.0
+websockets>=12.0
 
 # ── Database & ORM ────────────────────────────────────────────────────────────
 sqlalchemy>=2.0.28
 psycopg2-binary>=2.9.9
 
 # ── Data Processing & Machine Learning ─────────────────────────────────────────
-numpy==1.26.4
-pandas==2.2.3
-scipy==1.14.1
-scikit-learn==1.5.2
+numpy>=1.26.0,<3.0.0
+pandas>=2.2.0,<4.0.0
+scipy>=1.12.0
+scikit-learn>=1.4.0
+joblib>=1.3.2
+matplotlib>=3.8.0
 openpyxl>=3.1.2
 
 # ── NLP & Sentiment Analysis ───────────────────────────────────────────────────
@@ -38,5 +41,7 @@ pillow>=10.2.0
 pytesseract>=0.3.10
 
 # ── Social & Scraping Utilities ───────────────────────────────────────────────
+scrapebadger>=0.23.0
+pytrends>=4.9.2
 beautifulsoup4>=4.12.3
 praw>=7.7.1

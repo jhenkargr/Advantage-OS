@@ -649,8 +649,13 @@ def run_prediction(
         from trend_predictor.reddit_scrap import scrape_reddit
         from trend_predictor.x_scrapper import scrape_x
     except ImportError:
-        from reddit_scrap import scrape_reddit
-        from x_scrapper import scrape_x
+        try:
+            from reddit_scrap import scrape_reddit
+            from x_scrapper import scrape_x
+        except ImportError as scrape_import_err:
+            print(f"[Predict] Notice: Live social scrapers could not be imported ({scrape_import_err}). Using synthetic fallback signals.")
+            scrape_reddit = lambda kws: pd.DataFrame(columns=["text", "likes", "comments", "date"])
+            scrape_x = lambda kws: pd.DataFrame(columns=["text", "likes", "retweets", "date"])
 
     analyzed = None
     data_source_mode = "database"

@@ -14,7 +14,11 @@ import re
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from scrapebadger import ScrapeBadger
+
+try:
+    from scrapebadger import ScrapeBadger
+except ImportError:
+    ScrapeBadger = None
 
 # ── Load API key from .env ────────────────────────────────────────────────────
 _this_dir = os.path.dirname(__file__)
@@ -53,6 +57,10 @@ def _estimate_likes(score: float, upvote_ratio: float) -> int:
 
 async def _async_scrape(keywords: list[str]) -> pd.DataFrame:
     """Async inner function — fetches posts for all keywords."""
+    if ScrapeBadger is None:
+        print("[Reddit] Warning: 'scrapebadger' package is not installed. Returning empty dataset.")
+        return pd.DataFrame(columns=["text", "likes", "comments", "date"])
+
     if not _SCRAPEBADGER_API_KEY:
         print("[Reddit] Warning: SCRAPEBADGER_API_KEY is not set. Returning empty dataset.")
         return pd.DataFrame(columns=["text", "likes", "comments", "date"])
