@@ -15,3 +15,6 @@ include = [
     "creative_studio*",
     "trend_predictor*"
 ]
+
+[tool.fastapi]
+entrypoint = "main:app"
