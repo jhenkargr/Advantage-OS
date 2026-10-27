@@ -1,0 +1,41 @@
+product_id,product_name,current_price,category,stock_available
+P001,Matcha Latte (Iced),220,Beverages,85
+P002,Ceremonial Grade Matcha Powder 50g,1299,Beverages,12
+P003,Cold Brew Coffee Bottle 250ml,180,Beverages,3
+P004,Espresso Tonic,190,Beverages,40
+P005,Brown Sugar Boba Milk Tea,210,Beverages,0
+P006,Classic Filter Coffee,80,Beverages,250
+P007,Oat Milk Cappuccino,240,Beverages,60
+P008,Strawberry Milkshake,170,Beverages,22
+P009,Hot Chocolate,150,Beverages,0
+P010,Avocado Toast,320,Food,18
+P011,Eggs Benedict Brunch Plate,420,Food,9
+P012,Veg Club Sandwich,230,Food,35
+P013,"Dubai Chocolate Kunafa Bar, 100g",499,Bakery & Desserts,4
+P014,Mango Cheesecake Slice,260,Bakery & Desserts,2
+P015,Millet Cookies Pack of 6,199,Bakery & Desserts,140
+P016,Sourdough Loaf,350,Bakery & Desserts,0
+P017,Chocolate Brownie,120,Bakery & Desserts,300
+P018,Pistachio Croissant,185,Bakery & Desserts,15
+P019,Co-ord Set (Cotton),1899,Fashion Apparel,7
+P020,Sustainable Cotton Kurti,999,Fashion Apparel,45
+P021,Oversized Blazer,2999,Fashion Apparel,1
+P022,Kalamkari Print Saree,4999,Fashion Apparel,5
+P023,Thrifted Denim Jacket,1499,Fashion Apparel,0
+P024,Streetwear Graphic Tee,599,Fashion Apparel,120
+P025,Printed Palazzo Pants,799,Fashion Apparel,28
+P026,Handloom Cotton Dupatta,699,Fashion Accessories,50
+P027,Oxidised Silver Jhumkas,349,Fashion Accessories,200
+P028,Leather Tote Bag,2499,Fashion Accessories,3
+P029,Keratin Hair Spa Treatment,2500,Salon Services,999
+P030,Balayage Hair Colour (Service),6500,Salon Services,999
+P031,Glass Skin Korean Facial,1800,Salon Services,999
+P032,Nail Art Gel Extension,1200,Salon Services,999
+P033,Keratin Smoothing Shampoo 250ml,649,Salon Products,25
+P034,Vitamin C Face Serum 30ml,799,Salon Products,6
+P035,Argan Oil Hair Mask 200g,550,Salon Products,0
+P036,Soy Wax Scented Candle,399,Gifts & Decor,75
+P037,Dried Flower Bouquet,899,Gifts & Decor,10
+P038,Personalised Photo Frame,449,Gifts & Decor,2
+P039,Diwali Gift Hamper Box,1799,Gifts & Decor,30
+P040,Whey Protein 1kg,2299,Fitness,14

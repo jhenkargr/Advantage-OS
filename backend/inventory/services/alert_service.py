@@ -21,9 +21,15 @@ class AlertService:
         """Aggregate high and medium risk inventory items into actionable alerts."""
         global _ALERTS_STORE
         if not _ALERTS_STORE or force_refresh:
-            predictions_summary = InventoryService.predict_all(force_refresh_data=force_refresh)
+            try:
+                predictions_summary = InventoryService.predict_all(force_refresh_data=force_refresh)
+                pred_list = predictions_summary.predictions
+            except Exception as e:
+                print(f"⚠️ [AlertService] Prediction summary warning: {e}")
+                pred_list = []
+
             new_alerts: list[AlertItem] = []
-            for pred in predictions_summary.predictions:
+            for pred in pred_list:
                 if pred.alert_needed:
                     driving_trend = "Local High Velocity Demand"
                     if pred.category in ["Beverages", "F&B"]:

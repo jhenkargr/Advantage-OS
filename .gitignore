@@ -60,6 +60,12 @@ MANIFEST
 *.xlsx
 *.parquet
 *.arrow
+
+# Whitelist essential lightweight models and seed data required by backend
+!backend/inventory/models/*.pkl
+!backend/trend_predictor/*.pkl
+!backend/inventory/data/*.csv
+!backend/*.csv
 metrics_fixed.json
 metrics_*.json
 trend_output/

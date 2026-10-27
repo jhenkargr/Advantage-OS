@@ -78,16 +78,66 @@ REQUIRED_CATALOG_COLUMNS = {
 }
 
 
+class FallbackDemandModel:
+    """Heuristic fallback when pretrained ML model file is not available or incompatible."""
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        results = []
+        for _, row in X.iterrows():
+            avg_daily = float(row.get("avg_daily_sales_7d", 1.5) or 1.5)
+            trend = float(row.get("trend_score", 1.0) or 1.0)
+            demand_7d = max(1, round(avg_daily * 7 * max(0.5, trend)))
+            results.append(demand_7d)
+        return np.array(results)
+
+
+class FallbackStockoutModel:
+    """Heuristic fallback for stockout probability."""
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        probs = []
+        for _, row in X.iterrows():
+            stock = float(row.get("current_stock", 10) or 10)
+            avg_daily = float(row.get("avg_daily_sales_7d", 1.5) or 1.5)
+            days_left = stock / max(0.1, avg_daily)
+            if stock <= 0:
+                p_out = 0.95
+            elif days_left < 3:
+                p_out = 0.75
+            elif days_left < 7:
+                p_out = 0.55
+            elif days_left < 14:
+                p_out = 0.25
+            else:
+                p_out = 0.05
+            probs.append([1.0 - p_out, p_out])
+        return np.array(probs)
+
+
 @lru_cache(maxsize=1)
 def load_ml_models():
-    """Load and cache demand regressor and stockout classifier."""
-    if not DEMAND_MODEL_PATH.is_file():
-        raise FileNotFoundError(f"Demand model not found at: {DEMAND_MODEL_PATH}")
-    if not STOCKOUT_MODEL_PATH.is_file():
-        raise FileNotFoundError(f"Stockout model not found at: {STOCKOUT_MODEL_PATH}")
+    """Load and cache demand regressor and stockout classifier with resilient fallback."""
+    demand_model = None
+    stockout_model = None
 
-    demand_model = joblib.load(DEMAND_MODEL_PATH)
-    stockout_model = joblib.load(STOCKOUT_MODEL_PATH)
+    if DEMAND_MODEL_PATH.is_file():
+        try:
+            demand_model = joblib.load(DEMAND_MODEL_PATH)
+        except Exception as e:
+            print(f"⚠️ [InventoryService] Could not load demand model from {DEMAND_MODEL_PATH}: {e}")
+
+    if STOCKOUT_MODEL_PATH.is_file():
+        try:
+            stockout_model = joblib.load(STOCKOUT_MODEL_PATH)
+        except Exception as e:
+            print(f"⚠️ [InventoryService] Could not load stockout model from {STOCKOUT_MODEL_PATH}: {e}")
+
+    if demand_model is None:
+        print("ℹ️ [InventoryService] Using FallbackDemandModel heuristic engine.")
+        demand_model = FallbackDemandModel()
+
+    if stockout_model is None:
+        print("ℹ️ [InventoryService] Using FallbackStockoutModel heuristic engine.")
+        stockout_model = FallbackStockoutModel()
+
     return demand_model, stockout_model
 
 
@@ -136,12 +186,22 @@ class InventoryService:
             df = None
 
         if df is None or df.empty:
-            if not CATALOG_PATH.is_file():
-                raise FileNotFoundError(f"Catalog file not found: {CATALOG_PATH}")
-            df = pd.read_csv(CATALOG_PATH)
-            missing = REQUIRED_CATALOG_COLUMNS.difference(df.columns)
-            if missing:
-                raise ValueError(f"Catalog is missing columns: {sorted(missing)}")
+            if CATALOG_PATH.is_file():
+                df = pd.read_csv(CATALOG_PATH)
+                missing = REQUIRED_CATALOG_COLUMNS.difference(df.columns)
+                if missing:
+                    raise ValueError(f"Catalog is missing columns: {sorted(missing)}")
+            else:
+                print(f"ℹ️ [InventoryService] Catalog file not found at {CATALOG_PATH}. Using starter catalog.")
+                df = pd.DataFrame([
+                    {"product_id": "P001", "product_name": "Espresso Blend Coffee Beans", "category": "Beverages", "current_stock": 25, "low_stock_threshold": 10},
+                    {"product_id": "P002", "product_name": "Matcha Green Tea Latte Mix", "category": "Beverages", "current_stock": 8, "low_stock_threshold": 10},
+                    {"product_id": "P003", "product_name": "Cold Brew Coffee Bottle 250ml", "category": "Beverages", "current_stock": 3, "low_stock_threshold": 10},
+                    {"product_id": "P005", "product_name": "Brown Sugar Boba Milk Tea", "category": "Beverages", "current_stock": 0, "low_stock_threshold": 10},
+                    {"product_id": "P009", "product_name": "Hot Chocolate", "category": "Beverages", "current_stock": 0, "low_stock_threshold": 10},
+                    {"product_id": "P014", "product_name": "Mango Cheesecake Slice", "category": "Bakery & Desserts", "current_stock": 2, "low_stock_threshold": 8},
+                    {"product_id": "P016", "product_name": "Sourdough Loaf", "category": "Bakery & Desserts", "current_stock": 0, "low_stock_threshold": 5},
+                ])
 
         cls._CATALOG_CACHE = df.copy()
         cls._CATALOG_CACHE_TIME = time.time()
@@ -192,8 +252,9 @@ class InventoryService:
         if df is None or df.empty:
             # Check candidate paths
             for candidate in [
-                Path(r"D:\major project\Backend\virenv\Scripts\sales_history.csv"),
                 SALES_LOG_PATH,
+                _HERE / "sales_history.csv",
+                _HERE / "inventory" / "data" / "sales_history.csv",
             ]:
                 if candidate.is_file():
                     cand_df = pd.read_csv(candidate)
@@ -204,10 +265,12 @@ class InventoryService:
                     break
 
         if df is None or df.empty:
-            if not SALES_LOG_PATH.is_file():
-                raise FileNotFoundError(f"Sales log file not found: {SALES_LOG_PATH}")
-            df = pd.read_csv(SALES_LOG_PATH)
-            df["date"] = pd.to_datetime(df["date"])
+            if SALES_LOG_PATH.is_file():
+                df = pd.read_csv(SALES_LOG_PATH)
+                df["date"] = pd.to_datetime(df["date"])
+            else:
+                print(f"ℹ️ [InventoryService] Sales log file not found at {SALES_LOG_PATH}. Using fallback sales frame.")
+                df = pd.DataFrame(columns=["product_id", "date", "units_sold", "price", "channel", "stock_after", "trend_score"])
 
         if db is None and df is not None:
             cls._SALES_CACHE = df.copy()
