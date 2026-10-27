@@ -1,8 +1,3 @@
-
-[build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "advantage-os"
 version = "0.1.0"
@@ -40,8 +35,4 @@ entrypoint = "main:app"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = [
-    "inventory*",
-    "creative_studio*",
-    "trend_predictor*"
-]
+include = ["inventory*", "creative_studio*", "trend_predictor*"]
