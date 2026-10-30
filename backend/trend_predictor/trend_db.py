@@ -60,7 +60,7 @@ def get_db_engine():
             url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
         try:
-            eng = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 15})
+            eng = create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 4})
             with eng.connect() as conn:
                 conn.execute(select(1))
             _ENGINE = eng
@@ -70,8 +70,10 @@ def get_db_engine():
 
     print(f"[trend_db] Neon PostgreSQL unavailable. Using SQLite fallback.")
 
-    # SQLite fallback
-    sqlite_dir = _HERE / "inventory" / "data"
+    # SQLite fallback - keep in sync with inventory/data/advantage.db
+    sqlite_dir = _HERE.parent / "inventory" / "data"
+    if not sqlite_dir.exists():
+        sqlite_dir = _HERE / "inventory" / "data"
     sqlite_dir.mkdir(parents=True, exist_ok=True)
     sqlite_path = sqlite_dir / "advantage.db"
     _ENGINE = create_engine(
@@ -151,6 +153,20 @@ def get_cached_trends(sme: str, city: str, max_age_hours: int = None) -> dict | 
 
         # Parse stored JSON
         output = json.loads(row["full_output_json"])
+
+        # Validate that cached items belong to the requested SME domain
+        items = output.get("trending_items", [])
+        if items and isinstance(items, list):
+            fnb_markers = {"matcha", "kunafa", "cold brew", "latte", "espresso", "brunch", "boba", "coffee", "pancakes", "biryani", "dosa", "cheesecake"}
+            non_fnb_smes = {"boutique", "salon", "gym", "gift_shop", "electronics", "d2c"}
+            sme_lower = sme.strip().lower()
+            if sme_lower in non_fnb_smes:
+                first_name = str(items[0].get("item_name", "")).lower()
+                first_cat = str(items[0].get("category", "")).lower()
+                if any(m in first_name for m in fnb_markers) or first_cat in {"dessert", "beverage", "dining concept", "dining experience"}:
+                    print(f"[trend_db] Corrupted cache detected in table '{table_name}' for SME '{sme}' (contains F&B items). Invalidating cache entry.")
+                    return None
+
         output["from_database"] = True
         output["database_table"] = table_name
         output["database_record_id"] = row["id"]

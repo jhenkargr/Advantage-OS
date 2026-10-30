@@ -320,13 +320,24 @@ def build_daily_series(df: pd.DataFrame) -> tuple[pd.Series, dict]:
     Returns (smoothed_series, aggregation_meta_dict).
     """
     df = df.copy()
+    if df.empty:
+        return pd.Series(dtype=float), {"posts_count": 0, "observed_days": 0}
+
     # Support multiple timestamp formats (Twitter explicit vs standard ISO)
     ts = pd.to_datetime(df["date"], format="%a %b %d %H:%M:%S %z %Y", errors="coerce")
     if ts.isna().all():
         ts = pd.to_datetime(df["date"], errors="coerce")
     df["ts"] = ts
     df = df.dropna(subset=["ts"])
+    if df.empty:
+        return pd.Series(dtype=float), {"posts_count": 0, "observed_days": 0}
+
     df["date_only"] = df["ts"].dt.tz_localize(None).dt.normalize()
+
+    # Ensure strictly numeric dtypes before groupby to avoid object-array ufunc errors
+    df["likes"] = pd.to_numeric(df.get("likes", 0), errors="coerce").fillna(0).astype(float)
+    df["comments"] = pd.to_numeric(df.get("comments", 0), errors="coerce").fillna(0).astype(float)
+    df["score"] = pd.to_numeric(df.get("score", 0.0), errors="coerce").fillna(0.0).astype(float)
 
     daily = (
         df.groupby("date_only")
@@ -339,25 +350,39 @@ def build_daily_series(df: pd.DataFrame) -> tuple[pd.Series, dict]:
         .reset_index()
     )
 
+    if daily.empty:
+        return pd.Series(dtype=float), {"posts_count": 0, "observed_days": 0}
+
+    # Ensure strictly float dtypes on aggregated daily columns for ufunc calculations
+    post_count = pd.to_numeric(daily["post_count"], errors="coerce").fillna(0).astype(float)
+    total_likes = pd.to_numeric(daily["total_likes"], errors="coerce").fillna(0).astype(float)
+    total_comments = pd.to_numeric(daily["total_comments"], errors="coerce").fillna(0).astype(float)
+    avg_sentiment = pd.to_numeric(daily["avg_sentiment"], errors="coerce").fillna(0.0).astype(float)
+
     daily["trend_score"] = (
-        daily["post_count"]
-        * np.log1p(daily["total_likes"] + 2 * daily["total_comments"])
-        * (1 + 0.5 * daily["avg_sentiment"].abs())
+        post_count
+        * np.log1p(np.maximum(0.0, total_likes + 2.0 * total_comments))
+        * (1.0 + 0.5 * avg_sentiment.abs())
     )
 
     daily = daily.set_index("date_only").sort_index()
-    full_idx = pd.date_range(daily.index.min(), daily.index.max(), freq="D")
-    daily_full = daily["trend_score"].reindex(full_idx).ffill().bfill()
+
+    # Ensure date range spans at least 14 continuous days for lag feature creation
+    max_d = daily.index.max()
+    min_d = min(daily.index.min(), max_d - pd.Timedelta(days=14))
+    full_idx = pd.date_range(min_d, max_d, freq="D")
+
+    daily_full = daily["trend_score"].reindex(full_idx).ffill().bfill().fillna(1.0)
     smoothed = daily_full.rolling(7, min_periods=1).mean()
-    min_date_str = str(daily.index.min().date())
-    max_date_str = str(daily.index.max().date())
+    min_date_str = str(min_d.date())
+    max_date_str = str(max_d.date())
     meta = {
         "posts_count": len(df),
         "observed_days": len(daily),
         "start_date": min_date_str,
         "end_date": max_date_str,
         "continuous_days": len(full_idx),
-        "line1": f"Aggregated {len(df)} tweets into {len(daily)} observed days ({min_date_str} to {max_date_str})",
+        "line1": f"Aggregated {len(df)} posts into {len(daily)} observed days ({min_date_str} to {max_date_str})",
         "line2": f"Reindexed to {len(full_idx)} continuous days for modeling",
     }
     return smoothed, meta

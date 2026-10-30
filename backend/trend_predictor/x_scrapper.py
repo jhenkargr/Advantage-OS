@@ -77,7 +77,13 @@ def _fetch_pages(query: str) -> List[Dict[str, Any]]:
             resp.raise_for_status()
             data = resp.json()
         except requests.exceptions.RequestException as exc:
-            print(f"[X] Request error on page {page + 1}: {exc}")
+            status = getattr(exc.response, "status_code", None) if hasattr(exc, "response") else None
+            if status == 402:
+                print(f"[X] Notice: TwitterAPI.io returned 402 Payment Required (API credits expired or quota reached). Continuing with Reddit & fallback signals.")
+            elif status == 429:
+                print(f"[X] Notice: TwitterAPI.io returned 429 Rate Limit. Continuing with available signals.")
+            else:
+                print(f"[X] Request error on page {page + 1}: {exc}")
             break
 
         tweets = data.get("tweets", [])
@@ -115,15 +121,22 @@ def _flatten_tweets(tweets: List[Dict[str, Any]]) -> pd.DataFrame:
             continue
         rows.append({
             "text":     text,
-            "likes":    t.get("likeCount", 0) or 0,
-            "comments": (t.get("retweetCount", 0) or 0) + (t.get("replyCount", 0) or 0),
+            "likes":    float(t.get("likeCount", 0) or 0),
+            "comments": float((t.get("retweetCount", 0) or 0) + (t.get("replyCount", 0) or 0)),
             "date":     t.get("createdAt", "") or "",
         })
 
     if not rows:
-        return pd.DataFrame(columns=["text", "likes", "comments", "date"])
+        return pd.DataFrame({
+            "text": pd.Series(dtype=str),
+            "likes": pd.Series(dtype=float),
+            "comments": pd.Series(dtype=float),
+            "date": pd.Series(dtype=str),
+        })
 
     df = pd.DataFrame(rows)
+    df["likes"] = pd.to_numeric(df["likes"], errors="coerce").fillna(0.0).astype(float)
+    df["comments"] = pd.to_numeric(df["comments"], errors="coerce").fillna(0.0).astype(float)
 
     # Normalise the date column to a consistent string format
     try:

@@ -67,8 +67,11 @@ async def _async_scrape(keywords: list[str]) -> pd.DataFrame:
 
     all_posts: list[dict] = []
 
+    # Cap number of queried keywords to prevent hammering ScrapeBadger rate limit
+    query_keywords = keywords[:7] if len(keywords) > 7 else keywords
+
     async with ScrapeBadger(api_key=_SCRAPEBADGER_API_KEY) as client:
-        for kw in keywords:
+        for kw in query_keywords:
             print(f"[Reddit] Scraping keyword: '{kw}'")
             try:
                 results = await client.reddit.search.posts(
@@ -88,19 +91,35 @@ async def _async_scrape(keywords: list[str]) -> pd.DataFrame:
                         "created_utc":  raw.get("created_utc", 0),
                     })
             except Exception as exc:
+                err_str = str(exc)
+                if "429" in err_str:
+                    print(f"[Reddit] Rate limit (429) encountered. Proceeding with {len(all_posts)} posts collected so far.")
+                    break
                 print(f"[Reddit] Error for keyword '{kw}': {exc}")
+
+            if len(all_posts) >= 60:
+                print(f"[Reddit] Target sample size reached ({len(all_posts)} posts).")
+                break
+
+            await asyncio.sleep(0.35)
 
     if not all_posts:
         print("[Reddit] No posts collected — returning empty DataFrame.")
-        return pd.DataFrame(columns=["text", "likes", "comments", "date"])
+        return pd.DataFrame({
+            "text": pd.Series(dtype=str),
+            "likes": pd.Series(dtype=float),
+            "comments": pd.Series(dtype=float),
+            "date": pd.Series(dtype=str),
+        })
 
     df = pd.DataFrame(all_posts)
 
     # ── Derived columns ───────────────────────────────────────────────────────
-    df["likes"] = df.apply(
-        lambda r: _estimate_likes(r["score"], r["upvote_ratio"]), axis=1
-    )
-    df["comments"] = df["num_comments"].astype(int)
+    df["likes"] = pd.to_numeric(
+        df.apply(lambda r: _estimate_likes(r["score"], r["upvote_ratio"]), axis=1),
+        errors="coerce",
+    ).fillna(0.0).astype(float)
+    df["comments"] = pd.to_numeric(df["num_comments"], errors="coerce").fillna(0.0).astype(float)
     df["date"] = pd.to_datetime(
         df["created_utc"], unit="s", utc=True
     ).dt.strftime("%a %b %d %H:%M:%S %z %Y")

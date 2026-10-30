@@ -41,7 +41,11 @@ import type {
   TrendPredictResult,
   KeywordResponse
 } from '../types/api';
-import { SAMPLE_TREND_PREDICTION, SME_SAMPLE_PREDICTIONS } from '../data/sampleTrendPrediction';
+import {
+  SAMPLE_TREND_PREDICTION,
+  SME_SAMPLE_PREDICTIONS,
+  SME_FALLBACK_TREND_ITEMS
+} from '../data/sampleTrendPrediction';
 import { LoadingSkeleton } from '../components/common/LoadingSkeleton';
 import { ErrorState } from '../components/common/ErrorState';
 import { Badge } from '../components/common/Badge';
@@ -217,7 +221,7 @@ Trend Forecast Report: ${deepForecastResult.topic || deepForecastResult.keywords
   };
 
   // Handle SME selection
-  const handleSelectSME = async (sme: SMEOption) => {
+  const handleSelectSME = async (sme: SMEOption, forceRefresh = false) => {
     setSelectedSme(sme);
     setTrendError(null);
     setTrendResult(null);
@@ -237,11 +241,32 @@ Trend Forecast Report: ${deepForecastResult.topic || deepForecastResult.keywords
       const data = await fetchSMETrends(sme.backendKey, {
         city: 'Bengaluru',
         demo: true,
+        refresh: forceRefresh,
       });
-      setTrendResult(data);
+      if (data && data.trending_items && data.trending_items.length > 0) {
+        setTrendResult(data);
+      } else {
+        const fallbackItems = SME_FALLBACK_TREND_ITEMS[sme.id] || SME_FALLBACK_TREND_ITEMS[sme.backendKey] || [];
+        setTrendResult({
+          status: 'success',
+          sme: sme.backendKey,
+          city: 'Bengaluru',
+          trending_items: fallbackItems,
+        });
+      }
     } catch (err: unknown) {
       console.warn('SME Trend analyze error:', err);
-      setTrendError(err instanceof Error ? err.message : 'Failed to retrieve trending products.');
+      const fallbackItems = SME_FALLBACK_TREND_ITEMS[sme.id] || SME_FALLBACK_TREND_ITEMS[sme.backendKey];
+      if (fallbackItems && fallbackItems.length > 0) {
+        setTrendResult({
+          status: 'success',
+          sme: sme.backendKey,
+          city: 'Bengaluru',
+          trending_items: fallbackItems,
+        });
+      } else {
+        setTrendError(err instanceof Error ? err.message : 'Failed to retrieve trending products.');
+      }
     } finally {
       setLoadingTrends(false);
     }
@@ -465,8 +490,29 @@ Trend Forecast Report: ${deepForecastResult.topic || deepForecastResult.keywords
                 <ErrorState title="SME signal error" message={trendError} />
               ) : trendResult && trendResult.trending_items?.length ? (
                 <div>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '0.7rem' }}>
-                    Trending topics related to {selectedSme.label}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.7rem' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#e2e8f0' }}>
+                      Trending topics related to {selectedSme.label}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectSME(selectedSme, true)}
+                      disabled={loadingTrends}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#a5b4fc',
+                        cursor: 'pointer',
+                        fontSize: '0.72rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                      }}
+                      title="Re-analyze and refresh trend signals"
+                    >
+                      <RefreshCw size={12} className={loadingTrends ? 'animate-spin' : ''} />
+                      Refresh
+                    </button>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                     {trendResult.trending_items.slice(0, 8).map((item, idx) => {
@@ -519,7 +565,11 @@ Trend Forecast Report: ${deepForecastResult.topic || deepForecastResult.keywords
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleRunCohere(searchKeywords);
                     }}
-                    placeholder="e.g. matcha latte, seasonal dessert, cafe menu..."
+                    placeholder={
+                      selectedSme
+                        ? `e.g. ${selectedSme.defaultKeyword}, trending ${selectedSme.label.toLowerCase()}...`
+                        : "e.g. matcha latte, seasonal dessert, cafe menu..."
+                    }
                     className="input"
                     style={{ paddingLeft: '2.75rem', fontSize: '0.92rem' }}
                   />

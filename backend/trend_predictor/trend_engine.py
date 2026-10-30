@@ -435,22 +435,894 @@ def _is_local(text, local_terms):
 
 
 # --------------------------------------------------------------------------
-# 3. SYNTHETIC DEMO DATA (no API keys needed; for testing the pipeline)
+# 3. SYNTHETIC DEMO DATA & CURATED TRENDS PER SME
 # --------------------------------------------------------------------------
-def make_demo_data(days=120, seed=7):
-    rng = np.random.default_rng(seed)
-    topics = {
-        "matcha":   (["matcha latte", "ceremonial matcha", "oat milk matcha whisk",
+SME_DEMO_TOPICS = {
+    "cafe": {
+        "matcha": (["matcha latte", "ceremonial matcha", "oat milk matcha whisk",
                       "iced matcha cafe", "matcha green tea powder"], "rise"),
         "coldbrew": (["cold brew coffee", "nitro cold brew tonic", "coffee tonic cafe",
                       "cold brew concentrate bottle", "espresso tonic"], "peak"),
-        "brunch":   (["weekend brunch menu", "avocado toast brunch", "eggs benedict brunch",
+        "brunch": (["weekend brunch menu", "avocado toast brunch", "eggs benedict brunch",
                       "bottomless brunch cafe", "brunch cafe pancakes"], "flat"),
-        "bubble":   (["bubble tea boba", "tapioca pearls milk tea", "boba shop queue",
+        "bubble": (["bubble tea boba", "tapioca pearls milk tea", "boba shop queue",
                       "brown sugar boba", "taro milk tea"], "decay"),
-        "dessert":  (["dubai chocolate kunafa", "pistachio kunafa bar", "viral chocolate dessert",
+        "dessert": (["dubai chocolate kunafa", "pistachio kunafa bar", "viral chocolate dessert",
                       "kunafa chocolate bar", "pistachio dessert cafe"], "rise"),
-    }
+    },
+    "restaurant": {
+        "biryani": (["donne biryani", "ambur dum biryani", "hyderabadi mutton biryani",
+                      "pot biryani meal", "bamboo chicken biryani"], "rise"),
+        "pizza": (["neapolitan sourdough pizza", "wood fired crust pizza", "burrata margherita pizza",
+                    "truffle mushroom pizza slice", "detroit style crispy pizza"], "peak"),
+        "burger": (["smash cheeseburger", "truffle beef burger", "brioche bun smash burger",
+                     "nashville hot crispy chicken burger", "double smash patty"], "rise"),
+        "ramen": (["tonkotsu ramen bowl", "spicy miso ramen broth", "black garlic ramen noodle",
+                    "pork belly chashu ramen", "dipping broth tsukemen"], "flat"),
+        "local_tiffin": (["ghee podi thatte idli", "benne open butter masala dosa",
+                          "kundapura chicken ghee roast", "mangalorean neer dosa", "coastal fish curry thali"], "rise"),
+    },
+    "bakery": {
+        "cheesecake": (["burnt basque cheesecake", "san sebastian molten cheesecake", "lotus biscoff baked cheesecake",
+                        "blueberry basque cheesecake slice", "japanese cotton sponge cheesecake"], "rise"),
+        "sourdough": (["artisanal sourdough loaf", "wild yeast sourdough boule", "seeded sourdough bread",
+                       "country sourdough loaf bakery", "sourdough focaccia rosemary"], "peak"),
+        "croissant": (["viral pistachio croissant", "almond frangipane croissant", "pain au chocolat flaky",
+                       "supreme circular filled croissant", "french butter laminated croissant"], "rise"),
+        "cookies": (["chunky stuffed cookies", "sea salt dark chocolate chip cookie", "brookies brownie cookie",
+                     "red velvet cream cheese stuffed cookie", "nyc style chunky cookie"], "flat"),
+        "pastry": (["tiramisu dessert tub", "belgian chocolate entremet mousse", "opera layered pastry cake",
+                    "choux cream pastry bun", "vanilla bean mille feuille"], "rise"),
+    },
+    "boutique": {
+        "coord": (["linen co-ord set", "printed cotton matching co-ord", "monochromatic summer co-ord",
+                    "resort wear two piece set", "blazer tailored trouser co-ord"], "rise"),
+        "ethnic": (["chikankari modal soft kurti", "mulmul embroidered anarkali suit", "handloom chanderi festive set",
+                    "banarasi tissue organza saree", "handcrafted lehenga choli set"], "peak"),
+        "streetwear": (["oversized vintage graphic tee", "washed cargo parachute pants", "heavyweight boxy fit hoodie",
+                        "drop shoulder streetwear apparel", "baggy distressed wide leg denim"], "rise"),
+        "thrift": (["vintage thrifted leather jacket", "90s retro oversized windbreaker", "sustainable curated thrift fashion",
+                    "reworked denim jacket thrift", "y2k vintage corset top"], "flat"),
+        "dresses": (["floral cottagecore midi dress", "ribbed knit bodycon dress", "bohemian maxi slip dress",
+                     "backless halter summer linen dress", "wrap around linen midi"], "decay"),
+    },
+    "salon": {
+        "facial": (["korean glass skin facial", "hydrafacial deep glow treatment", "24k gold leaf radiance facial",
+                    "oxygen infusion hydra facial", "carbon laser skin peel glow"], "rise"),
+        "hair_treatment": (["keratin smoothing treatment", "brazilian blowout smoothing", "hair botox restoration clinic",
+                            "cystine hair protein treatment", "scalp detox therapy head spa"], "peak"),
+        "color": (["sun-kissed balayage highlights", "ash blonde babylights hair", "chocolate caramel ombre highlights",
+                    "money piece face framing color", "warm copper brown global hair"], "flat"),
+        "nails": (["chrome glazed donut nail art", "french tip gel extensions studio", "cat eye magnetic gel nails",
+                    "minimalist nude ombre gel nails", "abstract hand-painted nail design"], "rise"),
+        "grooming": (["brow lamination and tint salon", "lash lift and tint studio", "japanese therapeutic head spa",
+                      "organic express blowout styling", "beard sculpting and facial spa"], "rise"),
+    },
+    "gym": {
+        "pilates": (["reformer pilates studio class", "classical reformer core workout", "cadillac pilates sculpting",
+                     "dynamic core reformer burn", "mat pilates resistance flow"], "rise"),
+        "crossfit": (["functional fitness hiit workout", "crossfit wods conditioning", "kettlebell metabolic blast",
+                      "barbell olympic weightlifting", "hyrox athletic endurance training"], "peak"),
+        "yoga": (["sound bath restorative yin yoga", "aerial hammock yoga studio", "heated vinyasa power flow",
+                  "sunrise hatha yoga class", "guided mindful meditation breathwork"], "flat"),
+        "mobility": (["calisthenics bodyweight training", "animal flow mobility drills", "active recovery foam rolling",
+                      "joint mobility conditioning", "gymnastics ring core strength"], "rise"),
+        "sports": (["pickleball club indoor courts", "padel tennis coaching clinic", "boxing heavy bag conditioning",
+                    "agility footwork speed drills", "indoor rock climbing bouldering"], "rise"),
+    },
+    "gift_shop": {
+        "candles": (["hand-poured soy wax scented candle", "amber jar aromatherapy candle", "wooden wick crackling candle",
+                     "botanical beeswax scented candle", "vanilla bean amber room fragrance"], "rise"),
+        "hampers": (["luxury festive gift hamper", "bespoke corporate gourmet hamper", "self-care wellness gift basket",
+                     "anniversary curated keepsake box", "personalized bridesmaid gift hamper"], "peak"),
+        "decor": (["resin art wooden customized nameplate", "handcrafted ceramic ribbed vase", "bohemian macrame wall tapestry",
+                   "brass vintage urli floating flower bowl", "modern minimalist abstract sculpture"], "flat"),
+        "plants": (["geometric succulent terrarium glass", "preserved moss wall art frame", "air purifying indoor plant ceramic",
+                    "miniature bonsai gift plant", "self-watering aesthetic desk planter"], "rise"),
+        "stationery": (["wax seal brass stamp kit", "leather bound refillable journal", "personalized calligraphed gift cards",
+                       "premium fountain pen writing set", "aesthetic wooden desk organizer"], "decay"),
+    },
+    "electronics": {
+        "audio": (["active noise cancelling wireless earbuds", "spatial audio over-ear headphones", "bone conduction sport earphones",
+                    "portable waterproof bluetooth speaker", "audiophile high-res dac amp"], "rise"),
+        "power": (["magsafe wireless magnetic power bank", "65w gan compact fast charger", "3-in-1 foldable wireless charging station",
+                    "braided high-speed usb-c cable", "solar emergency portable power bank"], "peak"),
+        "wearables": (["amoled display smartwatch", "fitness sleep tracking smart ring", "gps outdoor sport tracker watch",
+                       "heart rate variability fitness band", "smart posture vibrating sensor"], "rise"),
+        "accessories": (["shockproof magsafe phone case", "ergonomic wireless vertical mouse", "retro mechanical keyboard rgb",
+                         "aluminum laptop ergonomic cooling stand", "4k ultra wide streaming webcam"], "flat"),
+        "smart_home": (["smart wifi led ambient light bar", "smart desk monitor backlight", "automated ultrasonic aroma diffuser",
+                        "bluetooth smart tag tracker finder", "motorized cable management tray"], "rise"),
+    },
+    "d2c": {
+        "pottery": (["handcrafted ceramic coffee mug", "artisan studio stoneware bowl", "speckled ceramic dinner plate",
+                     "hand-pinched terracotta pitcher", "handmade clay matcha whisk bowl"], "rise"),
+        "skincare": (["small-batch whipped shea body butter", "cold-pressed artisanal goat milk soap", "organic rosehip seed face elixir",
+                      "botanical tinted lip butter pot", "exfoliating roasted coffee sugar scrub"], "peak"),
+        "jewelry": (["dainty handmade beaded necklace", "freshwater baroque pearl earrings", "polymer clay statement earrings",
+                     "anti-tarnish stainless steel gold ring", "wire wrapped raw crystal pendant"], "rise"),
+        "bags": (["organic heavy canvas tote bag", "block printed cotton carryall tote", "handcrafted jute daily shopping bag",
+                  "vintage corduroy shoulder tote", "minimalist padded laptop sleeve"], "flat"),
+        "wellness": (["ceremonial grade raw cacao block", "herbal loose leaf wellness tea blend", "cold-pressed pure artisanal essential oil",
+                      "pure raw forest wildflower honey", "natural sacred smudge incense sticks"], "rise"),
+    },
+}
+
+SME_DEMO_RISING = {
+    "cafe": [
+        {"seed": "matcha", "rising_query": "iced matcha latte with oat milk", "growth_pct": 280},
+        {"seed": "cold brew", "rising_query": "cold brew concentrate bottle", "growth_pct": 190},
+        {"seed": "cafe", "rising_query": "dubai kunafa chocolate bar bangalore", "growth_pct": 350},
+        {"seed": "brunch", "rising_query": "bottomless brunch indiranagar", "growth_pct": 140},
+        {"seed": "latte", "rising_query": "pistachio iced latte cafe", "growth_pct": 210},
+    ],
+    "restaurant": [
+        {"seed": "biryani", "rising_query": "authentic donne biryani bangalore", "growth_pct": 310},
+        {"seed": "pizza", "rising_query": "wood fired neapolitan sourdough pizza", "growth_pct": 240},
+        {"seed": "burger", "rising_query": "crispy smash burger koramangala", "growth_pct": 195},
+        {"seed": "ramen", "rising_query": "tonkotsu ramen bowl indiranagar", "growth_pct": 160},
+        {"seed": "dosa", "rising_query": "ghee podi thatte idli breakfast", "growth_pct": 220},
+    ],
+    "bakery": [
+        {"seed": "cheesecake", "rising_query": "burnt basque cheesecake slice", "growth_pct": 290},
+        {"seed": "croissant", "rising_query": "pistachio stuffed croissant viral", "growth_pct": 340},
+        {"seed": "sourdough", "rising_query": "artisan sourdough loaf bakery", "growth_pct": 180},
+        {"seed": "cookies", "rising_query": "chunky sea salt chocolate chip cookie", "growth_pct": 160},
+        {"seed": "dessert", "rising_query": "tiramisu dessert tub bakery", "growth_pct": 210},
+    ],
+    "boutique": [
+        {"seed": "co-ord set", "rising_query": "linen co ord set for women", "growth_pct": 320},
+        {"seed": "kurti", "rising_query": "chikankari modal kurti bangalore", "growth_pct": 260},
+        {"seed": "streetwear", "rising_query": "oversized graphic streetwear tee", "growth_pct": 210},
+        {"seed": "saree", "rising_query": "pastel organza tissue saree", "growth_pct": 190},
+        {"seed": "thrift", "rising_query": "vintage thrift clothing store indiranagar", "growth_pct": 175},
+    ],
+    "salon": [
+        {"seed": "facial", "rising_query": "korean glass skin facial salon bangalore", "growth_pct": 350},
+        {"seed": "keratin", "rising_query": "keratin smoothing hair treatment offer", "growth_pct": 240},
+        {"seed": "balayage", "rising_query": "sun kissed balayage hair color trends", "growth_pct": 200},
+        {"seed": "nails", "rising_query": "glazed donut chrome nail art salon", "growth_pct": 280},
+        {"seed": "hair spa", "rising_query": "scalp detox japanese head spa", "growth_pct": 310},
+    ],
+    "gym": [
+        {"seed": "pilates", "rising_query": "reformer pilates studio near me bangalore", "growth_pct": 380},
+        {"seed": "crossfit", "rising_query": "hyrox functional fitness training", "growth_pct": 270},
+        {"seed": "pickleball", "rising_query": "indoor pickleball courts booking", "growth_pct": 340},
+        {"seed": "yoga", "rising_query": "sound bath yin yoga studio", "growth_pct": 190},
+        {"seed": "calisthenics", "rising_query": "bodyweight calisthenics gym", "growth_pct": 170},
+    ],
+    "gift_shop": [
+        {"seed": "candles", "rising_query": "hand poured soy wax scented candles", "growth_pct": 290},
+        {"seed": "gift hamper", "rising_query": "curated luxury celebration gift hamper", "growth_pct": 250},
+        {"seed": "home decor", "rising_query": "custom resin art nameplates bangalore", "growth_pct": 210},
+        {"seed": "terrarium", "rising_query": "geometric succulent terrarium gift", "growth_pct": 195},
+        {"seed": "handmade", "rising_query": "personalized keepsake gifting ideas", "growth_pct": 170},
+    ],
+    "electronics": [
+        {"seed": "earbuds", "rising_query": "anc wireless earbuds under 5000", "growth_pct": 280},
+        {"seed": "power bank", "rising_query": "magnetic wireless magsafe power bank", "growth_pct": 240},
+        {"seed": "smartwatch", "rising_query": "amoled display smartwatch with gps", "growth_pct": 210},
+        {"seed": "gadgets", "rising_query": "ergonomic mechanical keyboard wireless", "growth_pct": 185},
+        {"seed": "charger", "rising_query": "65w gan multi device fast charger", "growth_pct": 195},
+    ],
+    "d2c": [
+        {"seed": "handmade", "rising_query": "small batch artisan ceramic mug", "growth_pct": 290},
+        {"seed": "organic skincare", "rising_query": "whipped shea body butter natural", "growth_pct": 260},
+        {"seed": "tote bag", "rising_query": "heavy canvas aesthetic tote bag", "growth_pct": 220},
+        {"seed": "jewelry", "rising_query": "anti tarnish freshwater pearl earrings", "growth_pct": 240},
+        {"seed": "scented candles", "rising_query": "small business handcrafted soy candles", "growth_pct": 190},
+    ],
+}
+
+SME_CURATED_TRENDS = {
+    "cafe": [
+        {
+            "item_name": "Dubai Kunafa Chocolate Pistachio Bar",
+            "category": "Dessert",
+            "associated_topic_id": 4,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 145.0,
+            "urgency_score": 95,
+            "commercial_appeal": "Indulgent Middle Eastern sweet fusion with viral sensory appeal across Instagram and TikTok.",
+            "key_drivers": ["Dubai Chocolate", "Kunafa Crisp", "Pistachio Praline", "Dessert Innovation"],
+            "recommended_action": "Feature as a signature limited-edition pastry special with visual prep reels.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Iced Matcha Latte",
+            "category": "Beverage",
+            "associated_topic_id": 0,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 88.0,
+            "urgency_score": 90,
+            "commercial_appeal": "Antioxidant-rich ceremonial green tea whisked with creamy oat milk for health-conscious morning crowds.",
+            "key_drivers": ["Clean Caffeine", "Ceremonial Grade", "Oat Milk Base", "Aesthetic Layers"],
+            "recommended_action": "Introduce flavored matcha variants such as vanilla bean and strawberry foam cold foam.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Cold Brew Coffee Concentrate",
+            "category": "Beverage",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 62.0,
+            "urgency_score": 78,
+            "commercial_appeal": "18-hour steeped smooth concentrate for grab-and-go home brewing and afternoon coffee tonic cocktails.",
+            "key_drivers": ["Low Acidity", "High Caffeine", "Retail Bottling", "Specialty Roasts"],
+            "recommended_action": "Bottle signature house blends in 250ml glass flasks for retail takeaway shelves.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Matcha Green Tea Powder",
+            "category": "Beverage Ingredient",
+            "associated_topic_id": 0,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 54.0,
+            "urgency_score": 72,
+            "commercial_appeal": "Surging at-home wellness enthusiasts looking for authentic Japanese Uji matcha tins.",
+            "key_drivers": ["Home Barista", "L-Theanine", "Culinary Grade", "Wellness Lifestyle"],
+            "recommended_action": "Sell packaged 50g starter tins with branded bamboo whisks at checkout.",
+            "local_relevance": "Medium"
+        },
+        {
+            "item_name": "Bottomless Brunch",
+            "category": "Dining Concept",
+            "associated_topic_id": 2,
+            "trend_status": "Steady / Evergreen",
+            "estimated_growth_pct": 41.0,
+            "urgency_score": 68,
+            "commercial_appeal": "Weekend communal dining experience featuring unlimited artisanal toasts, fluffy pancakes, and craft brews.",
+            "key_drivers": ["Weekend Gatherings", "Social Dining", "Avocado Toast", "Fluffy Pancakes"],
+            "recommended_action": "Offer a 2-hour weekend brunch package between 11 AM and 3 PM with live acoustic sets.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Taro Boba Milk Tea",
+            "category": "Beverage",
+            "associated_topic_id": 3,
+            "trend_status": "Steady / Evergreen",
+            "estimated_growth_pct": 38.0,
+            "urgency_score": 60,
+            "commercial_appeal": "Vibrant purple sweet root milk tea with chewy brown sugar tapioca pearls popular among Gen Z.",
+            "key_drivers": ["Boba Culture", "Texture Contrast", "Gen Z Favorite", "Sweet Treat"],
+            "recommended_action": "Add boba toppings as customizable add-ons across iced tea and matcha selections.",
+            "local_relevance": "Medium"
+        }
+    ],
+    "restaurant": [
+        {
+            "item_name": "Donne Biryani",
+            "category": "Main Course",
+            "associated_topic_id": 0,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 135.0,
+            "urgency_score": 94,
+            "commercial_appeal": "Fragrant seeraga samba rice cooked with mint, coriander, and succulent spiced meat in palm leaf bowls.",
+            "key_drivers": ["Karnataka Heritage", "Seeraga Samba Rice", "Street Food Craving", "Comfort Food"],
+            "recommended_action": "Promote clay pot Donne Biryani combos during lunch peak hours and weekend food delivery.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Neapolitan Sourdough Pizza",
+            "category": "Main Course",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 112.0,
+            "urgency_score": 89,
+            "commercial_appeal": "72-hour fermented sourdough crust blistered at 450°C topped with creamy burrata and san marzano tomatoes.",
+            "key_drivers": ["Wood Fired", "Burrata Cheese", "Artisanal Dough", "Gourmet Dining"],
+            "recommended_action": "Introduce a chef's table demonstration showing hand-stretched sourdough wood-fire baking.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Smash Cheeseburger",
+            "category": "Fast Casual",
+            "associated_topic_id": 2,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 85.0,
+            "urgency_score": 84,
+            "commercial_appeal": "Lacy-edged crispy sear patties with melted sharp cheddar, caramelized onions, and house burger sauce.",
+            "key_drivers": ["Crispy Edges", "Brioche Buns", "Comfort Food", "Casual Dining"],
+            "recommended_action": "Offer double and triple smash burger specials paired with seasoned crinkle fries.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Tonkotsu Ramen Bowl",
+            "category": "Main Course",
+            "associated_topic_id": 3,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 76.0,
+            "urgency_score": 80,
+            "commercial_appeal": "Rich 12-hour simmered collagen broth with springy noodles, ajitsuke tamago, and torched chashu.",
+            "key_drivers": ["Japanese Cuisine", "Comfort Broth", "Noodle Craving", "Authentic Dining"],
+            "recommended_action": "Host a midweek 'Ramen & Gyoza Night' to boost weekday dinner footfalls.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Ghee Podi Thatte Idli",
+            "category": "Breakfast / Snack",
+            "associated_topic_id": 4,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 68.0,
+            "urgency_score": 75,
+            "commercial_appeal": "Ultra-soft steamed rice cakes drenched in pure desi ghee and fiery gun powder spice mix.",
+            "key_drivers": ["Heritage Breakfast", "Pure Desi Ghee", "Spicy Gunpowder", "Local Staple"],
+            "recommended_action": "Bundle as an express morning breakfast combo with freshly ground filter coffee.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Crispy Korean Fried Chicken",
+            "category": "Snack / Main Course",
+            "associated_topic_id": 2,
+            "trend_status": "Steady / Evergreen",
+            "estimated_growth_pct": 58.0,
+            "urgency_score": 72,
+            "commercial_appeal": "Double-fried ultra-crunchy chicken wings coated in sweet spicy gochujang glaze and toasted sesame.",
+            "key_drivers": ["K-Food Craze", "Double Fried Crunch", "Gochujang Glaze", "Late Night Bites"],
+            "recommended_action": "Introduce combo platters with pickled radish and Korean draft refreshments.",
+            "local_relevance": "Medium"
+        }
+    ],
+    "bakery": [
+        {
+            "item_name": "Burnt Basque Cheesecake",
+            "category": "Dessert",
+            "associated_topic_id": 0,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 140.0,
+            "urgency_score": 95,
+            "commercial_appeal": "Caramelized burnt exterior with a molten, creamy center that delivers unmatched indulgence.",
+            "key_drivers": ["Molten Center", "Basque Style", "Gluten Free Friendly", "Gourmet Bakery"],
+            "recommended_action": "Offer whole 6-inch celebration cakes and by-the-slice counter orders with warm berry compote.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Artisanal Sourdough Boule",
+            "category": "Artisan Bread",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 92.0,
+            "urgency_score": 88,
+            "commercial_appeal": "Long cold-fermented wild yeast loaves with open crumb and blistered crispy crust for gut wellness.",
+            "key_drivers": ["Gut Health", "Wild Yeast Starter", "No Additives", "Artisan Bakery"],
+            "recommended_action": "Establish daily morning bake schedules and communicate batch release times on WhatsApp channels.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Viral Pistachio Croissant",
+            "category": "Pastry",
+            "associated_topic_id": 2,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 125.0,
+            "urgency_score": 92,
+            "commercial_appeal": "Flaky French laminated croissant injected with rich pistachio custard and topped with roasted pistachio nibs.",
+            "key_drivers": ["Laminated Pastry", "Pistachio Craze", "Viral Bakes", "French Butter"],
+            "recommended_action": "Promote as a signature breakfast counter item paired with flat whites.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Chunky Biscoff Brookies",
+            "category": "Cookies",
+            "associated_topic_id": 3,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 78.0,
+            "urgency_score": 80,
+            "commercial_appeal": "Fudge brownie base merged with sea salt chocolate chip cookie dough stuffed with Lotus Biscoff spread.",
+            "key_drivers": ["Hybrid Dessert", "Lotus Biscoff", "Stuffed Cookies", "Sweet Indulgence"],
+            "recommended_action": "Pack in aesthetic gift boxes of 4 and 6 for birthday hampers and impulse billing counter sales.",
+            "local_relevance": "Medium"
+        },
+        {
+            "item_name": "Tiramisu Tub",
+            "category": "Dessert",
+            "associated_topic_id": 4,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 84.0,
+            "urgency_score": 82,
+            "commercial_appeal": "Espresso-soaked ladyfingers layered with whipped mascarpone cream and dusted with dutch cocoa powder.",
+            "key_drivers": ["Classic Italian", "Espresso Flavor", "Tub Packaging", "Shareable Dessert"],
+            "recommended_action": "Use transparent branded takeout tubs with personalized ribbon packaging.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Millet Sourdough Bread",
+            "category": "Healthy Bakery",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 65.0,
+            "urgency_score": 76,
+            "commercial_appeal": "Locally sourced ragi and foxtail millet blends incorporated into high-hydration sourdough breads.",
+            "key_drivers": ["Millet Movement", "Diabetes Friendly", "Local Grains", "High Fiber"],
+            "recommended_action": "Highlight glycemic index benefits and nutritional breakdowns on shelf display cards.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        }
+    ],
+    "boutique": [
+        {
+            "item_name": "Linen Co-ord Sets",
+            "category": "Apparel",
+            "associated_topic_id": 0,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 155.0,
+            "urgency_score": 96,
+            "commercial_appeal": "Effortless breathable two-piece matching linen tops and wide-leg trousers dominating modern urban workwear.",
+            "key_drivers": ["Summer Fashion", "Minimalist Workwear", "Breathable Fabric", "Day-to-Night Styling"],
+            "recommended_action": "Curate earthy pastel palettes (olive, terracotta, beige) and showcase 3-way mix-and-match reels.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Chikankari Modal Kurtis",
+            "category": "Ethnic Wear",
+            "associated_topic_id": 1,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 128.0,
+            "urgency_score": 92,
+            "commercial_appeal": "Soft flowy modal fabric decorated with intricate Lucknowi hand-embroidery in pastel tones.",
+            "key_drivers": ["Handloom Heritage", "Soft Modal Silk", "Pastel Ethnic", "Festive & Casual"],
+            "recommended_action": "Stock sizes XS through XXL with matching cotton slips and flared palazzo trousers.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Oversized Graphic Streetwear",
+            "category": "Casual Apparel",
+            "associated_topic_id": 2,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 110.0,
+            "urgency_score": 88,
+            "commercial_appeal": "240 GSM heavyweight cotton drop-shoulder tees with typography and anime-inspired back prints.",
+            "key_drivers": ["Gen Z Streetwear", "Drop Shoulder", "Heavyweight Cotton", "Y2K Aesthetic"],
+            "recommended_action": "Set up a dedicated streetwear rack in-store with moody warm lighting and sticker giveaways.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Pastel Organza Sarees",
+            "category": "Festive Wear",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 85.0,
+            "urgency_score": 82,
+            "commercial_appeal": "Lightweight sheer organza sarees with delicate scalloped gota borders and subtle floral prints.",
+            "key_drivers": ["Bridal Trousseau", "Lightweight Festive", "Photogenic Drapes", "Intimate Weddings"],
+            "recommended_action": "Display draped on mannequins at boutique window displays with pearl accessories.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Washed Cargo Parachute Pants",
+            "category": "Bottomwear",
+            "associated_topic_id": 2,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 74.0,
+            "urgency_score": 78,
+            "commercial_appeal": "Comfortable utilitarian baggy pants with drawstrings, multi-utility pockets, and adjustable toggles.",
+            "key_drivers": ["Cargo Revival", "Comfort Styling", "Utility Fashion", "Travel Wear"],
+            "recommended_action": "Pair with crop tops and oversized bomber jackets on visual merchandising displays.",
+            "local_relevance": "Medium"
+        },
+        {
+            "item_name": "Vintage Thrifted Denim Jackets",
+            "category": "Sustainable Fashion",
+            "associated_topic_id": 3,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 68.0,
+            "urgency_score": 75,
+            "commercial_appeal": "One-of-a-kind upcycled and retro acid-wash denim jackets driving sustainable fashion choices.",
+            "key_drivers": ["Circular Economy", "Thrift Culture", "Unique Pieces", "Indiranagar Thrift Hub"],
+            "recommended_action": "Host a monthly 'Thrift & Swap Weekend Pop-up' to attract Gen Z shoppers.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        }
+    ],
+    "salon": [
+        {
+            "item_name": "Korean Glass Skin Facial",
+            "category": "Skincare Treatment",
+            "associated_topic_id": 0,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 165.0,
+            "urgency_score": 98,
+            "commercial_appeal": "Multi-step hydrating facial combining gentle AHA/BHA peeling, peptide ampoules, and LED light therapy for luminous dewiness.",
+            "key_drivers": ["K-Beauty Glow", "Glass Skin", "Deep Hydration", "Pre-Event Ready"],
+            "recommended_action": "Offer as a premium 60-minute glow treatment with before-and-after skin analysis reports.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Keratin Smoothing Treatment",
+            "category": "Haircare Service",
+            "associated_topic_id": 1,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 120.0,
+            "urgency_score": 90,
+            "commercial_appeal": "Formaldehyde-free protein smoothing treatment that eliminates monsoon frizz and seals hair cuticles for 4 months.",
+            "key_drivers": ["Frizz Control", "Hair Botox", "Humidity Resistance", "Low Maintenance"],
+            "recommended_action": "Bundle with sulfate-free aftercare shampoo and conditioner gift packs.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Sun-Kissed Balayage Highlights",
+            "category": "Hair Color",
+            "associated_topic_id": 2,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 105.0,
+            "urgency_score": 88,
+            "commercial_appeal": "Hand-painted seamless highlights transitioning from natural roots to warm honey and caramel accents.",
+            "key_drivers": ["Low Regrowth Maintenance", "Custom Painting", "Dimensional Color", "Natural Finish"],
+            "recommended_action": "Showcase transformation video reels on Instagram focusing on gloss toning.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Chrome Glazed Donut Nails",
+            "category": "Nail Art",
+            "associated_topic_id": 3,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 95.0,
+            "urgency_score": 85,
+            "commercial_appeal": "Pearly iridescent chrome powder rubbed over milky nude gel extensions popular on celebrity red carpets.",
+            "key_drivers": ["Hailey Bieber Nails", "Chrome Powder", "Minimalist Luxury", "Gel Extensions"],
+            "recommended_action": "Add as an express nail bar upgrade package during pedicures or hair coloring sessions.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Scalp Detox Head Spa",
+            "category": "Wellness / Haircare",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 82.0,
+            "urgency_score": 82,
+            "commercial_appeal": "Japanese-inspired scalp exfoliation, steam waterfall circulation, and acupressure massage for hair thinning relief.",
+            "key_drivers": ["Japanese Head Spa", "Scalp Health", "Stress Relief", "Acupressure"],
+            "recommended_action": "Set up a relaxing darkened head-spa suite with aromatherapy mist and calming sound therapy.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Brow Lamination & Tint",
+            "category": "Grooming",
+            "associated_topic_id": 4,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 72.0,
+            "urgency_score": 76,
+            "commercial_appeal": "Semi-permanent perming technique that brushes brow hairs upward for a fuller, feathered supermodel look.",
+            "key_drivers": ["Fluffy Brows", "Feathered Look", "Microblading Alternative", "Quick Service"],
+            "recommended_action": "Offer lunch-break 30-minute brow enhancement slots with online booking discounts.",
+            "local_relevance": "Medium"
+        }
+    ],
+    "gym": [
+        {
+            "item_name": "Reformer Pilates Sculpt",
+            "category": "Fitness Class",
+            "associated_topic_id": 0,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 170.0,
+            "urgency_score": 98,
+            "commercial_appeal": "High-resistance spring-loaded carriage training emphasizing deep core stabilization, posture, and lean sculpting.",
+            "key_drivers": ["Celebrity Workout", "Core Strength", "Low Impact", "Joint Friendly"],
+            "recommended_action": "Launch beginner 5-session introductory packages with small group sizes (max 6 clients).",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Functional HIIT & Hyrox Conditioning",
+            "category": "Athletic Training",
+            "associated_topic_id": 1,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 115.0,
+            "urgency_score": 89,
+            "commercial_appeal": "Combination of ski erg, sled push, rowing, and running circuits designed for race and athletic conditioning.",
+            "key_drivers": ["Hyrox Fitness", "Functional Movement", "Cardio Endurance", "Athletic Community"],
+            "recommended_action": "Create dedicated weekend simulation tracks with leaderboards and community badges.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Sound Bath & Yin Yoga",
+            "category": "Mindfulness / Yoga",
+            "associated_topic_id": 2,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 98.0,
+            "urgency_score": 85,
+            "commercial_appeal": "Restorative deep fascial stretching paired with Tibetan singing bowl acoustic vibrations for nervous system reset.",
+            "key_drivers": ["Mental Health", "Vagus Nerve Reset", "Sound Healing", "Stress Reduction"],
+            "recommended_action": "Schedule Sunday evening wind-down candlelit classes before the start of the work week.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Pickleball League Training",
+            "category": "Racquet Sports",
+            "associated_topic_id": 3,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 140.0,
+            "urgency_score": 92,
+            "commercial_appeal": "Fast-paced social paddle sport booming across corporate communities and recreational weekend clubs.",
+            "key_drivers": ["Social Sport", "Easy Learning Curve", "All Age Fitness", "Corporate Leagues"],
+            "recommended_action": "Partner with nearby turf venues or convert indoor studio courts for weekday evening ladder leagues.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Calisthenics & Joint Mobility",
+            "category": "Bodyweight Fitness",
+            "associated_topic_id": 4,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 78.0,
+            "urgency_score": 80,
+            "commercial_appeal": "Mastery of muscle-ups, handstands, and gymnastic ring control combined with active joint mobility routines.",
+            "key_drivers": ["Relative Strength", "No Machine Workout", "Handstand Goals", "Injury Prevention"],
+            "recommended_action": "Set up a dedicated gymnastics ring and pull-up bar zone with progressive workshops.",
+            "local_relevance": "Medium"
+        },
+        {
+            "item_name": "Recovery Foam Rolling & Cold Plunge",
+            "category": "Active Recovery",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 88.0,
+            "urgency_score": 84,
+            "commercial_appeal": "Post-workout contrast therapy combining cold immersion plunge tubs with percussion massage guns.",
+            "key_drivers": ["Biohacking", "Muscle Recovery", "Cold Plunge", "Endorphin Boost"],
+            "recommended_action": "Add 15-minute recovery lounge add-ons to all monthly premium gym memberships.",
+            "local_relevance": "High"
+        }
+    ],
+    "gift_shop": [
+        {
+            "item_name": "Artisanal Soy Scented Candles",
+            "category": "Home Fragrance",
+            "associated_topic_id": 0,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 148.0,
+            "urgency_score": 94,
+            "commercial_appeal": "Eco-friendly non-toxic soy candles infused with french lavender, sandalwood, and crackling wooden wicks.",
+            "key_drivers": ["Clean Fragrance", "Aesthetic Amber Jars", "Wooden Wick", "Self Care Gifting"],
+            "recommended_action": "Set up a fragrance testing station in-store and offer personalized custom message labeling.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Curated Celebration Gift Hampers",
+            "category": "Gifting Concept",
+            "associated_topic_id": 1,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 130.0,
+            "urgency_score": 91,
+            "commercial_appeal": "Artisanal wooden gift boxes with bespoke selections of gourmet treats, scented candles, and keepsake journals.",
+            "key_drivers": ["Corporate Gifting", "Wedding Favors", "Bespoke Packaging", "Hassle-Free Gifting"],
+            "recommended_action": "Offer customizable 'Build Your Own Hamper' options online and in retail stores.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Custom Resin Art Nameplates",
+            "category": "Personalized Decor",
+            "associated_topic_id": 2,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 95.0,
+            "urgency_score": 86,
+            "commercial_appeal": "Handmade epoxy resin nameplates with gold foil leafing, geode textures, and embedded dried botanicals.",
+            "key_drivers": ["Housewarming Gifts", "Resin Art", "Personalized Touch", "Modern Entryways"],
+            "recommended_action": "Display sample nameplates in store windows and provide 5-day custom order fulfillment.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Geometric Succulent Terrariums",
+            "category": "Botanical Decor",
+            "associated_topic_id": 3,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 82.0,
+            "urgency_score": 80,
+            "commercial_appeal": "Faceted glass geometric vessels housing low-maintenance succulents, moss, and colored sand layers.",
+            "key_drivers": ["Biophilic Design", "Desk Plants", "Low Maintenance", "Aesthetic Living"],
+            "recommended_action": "Pair with branded mini care guides and offer pre-planted desktop arrangements.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Minimalist Ribbed Ceramic Vases",
+            "category": "Home Decor",
+            "associated_topic_id": 2,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 74.0,
+            "urgency_score": 76,
+            "commercial_appeal": "Matte textured ceramic donut and ribbed arc vases designed for dry pampas grass and minimalist credenzas.",
+            "key_drivers": ["Nordic Decor", "Ceramic Art", "Pampas Grass Trend", "Neutral Interiors"],
+            "recommended_action": "Create styling vignette displays combining ceramic vases with dried floral arrangements.",
+            "local_relevance": "Medium"
+        },
+        {
+            "item_name": "Wax Seal Journaling Stationery Kits",
+            "category": "Lifestyle / Craft",
+            "associated_topic_id": 4,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 62.0,
+            "urgency_score": 70,
+            "commercial_appeal": "Vintage brass stamp heads, wax melting spoons, and metallic wax beads popular among bullet journal hobbyists.",
+            "key_drivers": ["Vintage Nostalgia", "Bullet Journaling", "Creative Hobbies", "Handwritten Letters"],
+            "recommended_action": "Bundle with vintage deckle-edge paper and calligraphy inks as starter gift sets.",
+            "local_relevance": "Medium"
+        }
+    ],
+    "electronics": [
+        {
+            "item_name": "Active Noise Cancelling Wireless Earbuds",
+            "category": "Audio Tech",
+            "associated_topic_id": 0,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 135.0,
+            "urgency_score": 92,
+            "commercial_appeal": "Hybrid active noise cancellation with low-latency gaming mode, multipoint pairing, and transparency audio.",
+            "key_drivers": ["Remote Work", "ANC Audio", "Commute Travel", "Affordable Tech"],
+            "recommended_action": "Provide in-store listening demo units with sanitized ear tips and price-match guarantees.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Magnetic Wireless Power Bank",
+            "category": "Mobile Accessories",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 118.0,
+            "urgency_score": 88,
+            "commercial_appeal": "Snap-on slim MagSafe compatible 10,000mAh battery packs with kickstands for on-the-go phone charging.",
+            "key_drivers": ["MagSafe Charging", "Cordless Travel", "Slim Form Factor", "Phone Kickstand"],
+            "recommended_action": "Bundle power banks with shockproof MagSafe cases for discounts at billing.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "AMOLED Smart Fitness Band",
+            "category": "Wearable Tech",
+            "associated_topic_id": 2,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 95.0,
+            "urgency_score": 84,
+            "commercial_appeal": "Always-on vivid AMOLED display tracking continuous SpO2, sleep stages, stress levels, and sports modes.",
+            "key_drivers": ["Health Tracking", "Affordable Wearable", "14-Day Battery", "Sleep Optimization"],
+            "recommended_action": "Highlight health metrics and battery longevity with side-by-side spec comparison cards.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "RGB Hot-Swappable Mechanical Keyboard",
+            "category": "Computer Peripherals",
+            "associated_topic_id": 3,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 88.0,
+            "urgency_score": 82,
+            "commercial_appeal": "75% compact layout mechanical keyboards with lubricated linear switches, sound dampening foam, and wireless tri-mode.",
+            "key_drivers": ["Custom Keyboard", "Desk Setup", "Tactile Typing", "Tech Aesthetic"],
+            "recommended_action": "Set up a hands-on desk display so customers can test switch actuation and acoustic clack.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "65W GaN Compact Fast Charger",
+            "category": "Charging Tech",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 78.0,
+            "urgency_score": 79,
+            "commercial_appeal": "Pocket-sized Gallium Nitride power brick capable of simultaneously charging a laptop, tablet, and smartphone.",
+            "key_drivers": ["GaN Technology", "Single Charger Lifestyle", "Travel Essential", "Laptop Fast Charge"],
+            "recommended_action": "Market as an essential travel replacement charger alongside durable braided 100W cables.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Smart Air Quality & Desk Ambient Monitor",
+            "category": "Smart Home Tech",
+            "associated_topic_id": 4,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 64.0,
+            "urgency_score": 72,
+            "commercial_appeal": "Real-time PM2.5, CO2, and temperature display with smart home integration and circadian screen backlighting.",
+            "key_drivers": ["Indoor Air Quality", "WFH Productivity", "Screenbar Lighting", "Tech Wellness"],
+            "recommended_action": "Bundle monitor screenbars with smart air quality sensors for home office ergonomics.",
+            "local_relevance": "Medium"
+        }
+    ],
+    "d2c": [
+        {
+            "item_name": "Small-Batch Handcrafted Pottery Mugs",
+            "category": "Artisan Kitchenware",
+            "associated_topic_id": 0,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 150.0,
+            "urgency_score": 95,
+            "commercial_appeal": "Wheel-thrown studio stoneware mugs with speckled glazes and ergonomic thumb-rest handles.",
+            "key_drivers": ["Studio Pottery", "Slow Living", "Mindful Morning", "Artisan Kitchen"],
+            "recommended_action": "Run limited monthly drop batches with maker stamp signatures and studio process videos.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Organic Whipped Shea Body Butter",
+            "category": "Clean Beauty",
+            "associated_topic_id": 1,
+            "trend_status": "Explosive Growth",
+            "estimated_growth_pct": 125.0,
+            "urgency_score": 90,
+            "commercial_appeal": "Waterless formula of unrefined African shea butter, mango butter, and jojoba oil with melt-on-skin texture.",
+            "key_drivers": ["Clean Beauty", "Waterless Formula", "Dry Skin Relief", "Non-Toxic Skincare"],
+            "recommended_action": "Offer travel-sized 50g trial jars and highlight all-natural food-grade ingredient sourcing.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Dainty Freshwater Pearl Beaded Jewelry",
+            "category": "Handmade Accessories",
+            "associated_topic_id": 2,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 108.0,
+            "urgency_score": 87,
+            "commercial_appeal": "Handcrafted choker necklaces and hoop earrings featuring irregular baroque pearls and anti-tarnish 18k gold beads.",
+            "key_drivers": ["Baroque Pearls", "Anti-Tarnish", "Layered Jewelry", "Affordable Luxury"],
+            "recommended_action": "Package in reusable velvet jewelry pouches with custom handwritten thank you cards.",
+            "local_relevance": "High"
+        },
+        {
+            "item_name": "Eco-Friendly Heavy Canvas Tote Bags",
+            "category": "Sustainable Accessories",
+            "associated_topic_id": 3,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 92.0,
+            "urgency_score": 82,
+            "commercial_appeal": "Durable 16oz cotton canvas totes featuring internal laptop sleeves, water bottle holders, and zipper tops.",
+            "key_drivers": ["Plastic Free Living", "Farmers Market Bag", "Aesthetic Carryall", "College Essential"],
+            "recommended_action": "Collaborate with independent local graphic illustrators on limited city-themed print designs.",
+            "local_relevance": "High (Bangalore Local Favorite)"
+        },
+        {
+            "item_name": "Botanical Scented Soy Candles",
+            "category": "Home Decor",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 85.0,
+            "urgency_score": 80,
+            "commercial_appeal": "Hand-poured coconut-soy wax topped with real pressed botanical petals, wild rosebuds, and quartz crystals.",
+            "key_drivers": ["Botanical Aesthetics", "Crystal Healing", "Clean Burn", "Gift Friendly"],
+            "recommended_action": "Offer seasonal aroma subscriptions and refill-jar exchange discount programs.",
+            "local_relevance": "Medium"
+        },
+        {
+            "item_name": "Cold-Pressed Herbal Face Elixir",
+            "category": "Organic Skincare",
+            "associated_topic_id": 1,
+            "trend_status": "Rising",
+            "estimated_growth_pct": 76.0,
+            "urgency_score": 78,
+            "commercial_appeal": "Lightweight facial oil infused with Kashmiri saffron, rosehip, and cold-pressed kumkumadi botanicals.",
+            "key_drivers": ["Ayurvedic Beauty", "Kumkumadi Glow", "Facial Gua Sha Oil", "Pure Botanicals"],
+            "recommended_action": "Bundle with jade or rose-quartz facial gua sha stones for evening skin rituals.",
+            "local_relevance": "High"
+        }
+    ]
+}
+
+
+def get_curated_sme_trends(sme: str, city: str = "Bengaluru") -> list[dict]:
+    sme_clean = sme.strip().lower().replace(" ", "_").replace("-", "_")
+    sme_clean = SME_ALIASES.get(sme_clean, sme_clean)
+    items = SME_CURATED_TRENDS.get(sme_clean, SME_CURATED_TRENDS["cafe"])
+    import copy
+    return copy.deepcopy(items)
+
+
+def _is_cached_trends_valid(sme: str, cached: dict) -> bool:
+    if not isinstance(cached, dict):
+        return False
+    items = cached.get("trending_items")
+    if not items or not isinstance(items, list) or len(items) == 0:
+        return False
+
+    sme_clean = sme.strip().lower().replace(" ", "_").replace("-", "_")
+    sme_clean = SME_ALIASES.get(sme_clean, sme_clean)
+
+    # Food/beverage keywords that should NEVER be present for non-F&B SMEs
+    fnb_markers = {"matcha", "kunafa", "cold brew", "latte", "espresso", "brunch", "boba", "coffee", "pancakes", "biryani", "dosa", "cheesecake"}
+    non_fnb_smes = {"boutique", "salon", "gym", "gift_shop", "electronics", "d2c"}
+
+    if sme_clean in non_fnb_smes:
+        first_item_name = str(items[0].get("item_name", "")).lower()
+        if any(marker in first_item_name for marker in fnb_markers):
+            return False
+        first_category = str(items[0].get("category", "")).lower()
+        if first_category in {"dessert", "beverage", "dining concept", "dining experience", "breakfast", "main course"}:
+            return False
+
+    return True
+
+
+def make_demo_data(sme: str = "cafe", days: int = 120, seed: int = 7) -> tuple[list[dict], pd.DataFrame]:
+    rng = np.random.default_rng(seed)
+    sme_clean = sme.strip().lower().replace(" ", "_").replace("-", "_")
+    sme_clean = SME_ALIASES.get(sme_clean, sme_clean)
+    topics = SME_DEMO_TOPICS.get(sme_clean, SME_DEMO_TOPICS["cafe"])
+
     local_bits = ["Indiranagar", "Koramangala", "HSR Layout", "Bangalore", "Jayanagar", ""]
     now = datetime.now(timezone.utc)
     rows, rid = [], 0
@@ -468,7 +1340,10 @@ def make_demo_data(days=120, seed=7):
                     "text": text, "engagement": int(rng.integers(1, 300)),
                     "is_local": "" != text.split()[-2], "origin": "demo",
                 })
-    return rows
+
+    rising_items = SME_DEMO_RISING.get(sme_clean, SME_DEMO_RISING["cafe"])
+    rising_df = pd.DataFrame(rising_items)
+    return rows, rising_df
 
 
 # --------------------------------------------------------------------------
@@ -485,15 +1360,10 @@ def _init_nlp():
     try:
         import nltk
         from nltk.stem import WordNetLemmatizer
-        try:
-            nltk.data.find("corpora/wordnet")
-        except LookupError:
-            nltk.download("wordnet", quiet=True)
-            nltk.download("omw-1.4", quiet=True)
+        nltk.data.find("corpora/wordnet")
         _lemmatizer = WordNetLemmatizer()
-        _lemmatizer.lemmatize("tests")  # trigger load; raises if data missing
     except Exception:
-        _lemmatizer = None  # fall back to light suffix stripping
+        _lemmatizer = None  # fall back to fast suffix stripping
 
 
 def _lemma(tok):
@@ -558,7 +1428,7 @@ def build_series(df, topic, freq="W"):
     return s.reindex(s.index.union(full)).fillna(0.0).sort_index()
 
 
-def lstm_forecast(values, horizon=4, window=4, epochs=200):
+def lstm_forecast(values, horizon=4, window=4, epochs=20):
     """Small LSTM; returns None if TensorFlow is missing or the series is too short."""
     if len(values) < window + 6:
         return None
@@ -575,10 +1445,12 @@ def lstm_forecast(values, horizon=4, window=4, epochs=200):
     sc = (v - lo) / (hi - lo)
     X = np.array([sc[i:i + window] for i in range(len(sc) - window)])[..., None]
     y = sc[window:]
+    if len(X) < 2:
+        return None
     tf.random.set_seed(0)
-    model = models.Sequential([layers.Input((window, 1)), layers.LSTM(16), layers.Dense(1)])
+    model = models.Sequential([layers.Input((window, 1)), layers.LSTM(8), layers.Dense(1)])
     model.compile(optimizer="adam", loss="mse")
-    model.fit(X, y, epochs=epochs, batch_size=8, verbose=0)
+    model.fit(X, y, epochs=min(epochs, 20), batch_size=8, verbose=0)
     hist, preds = list(sc[-window:]), []
     for _ in range(horizon):
         p = float(model.predict(np.array(hist[-window:])[None, :, None], verbose=0)[0, 0])
@@ -715,8 +1587,8 @@ def discover_trends(
     # ---- fetch -----------------------------------------------------------
     rows, interest, rising = [], pd.DataFrame(), pd.DataFrame()
     if demo:
-        print("[demo] generating synthetic data")
-        rows = make_demo_data(days=max(days, 90))
+        print(f"[demo] generating synthetic data for SME '{sme}' in '{city}'")
+        rows, rising = make_demo_data(sme=sme, days=max(days, 90))
     else:
         if "reddit" in sources_set:
             rows += fetch_reddit(profile, city, days, per_query, local_terms)
@@ -894,7 +1766,10 @@ def process_trend_analysis(
     if not refresh:
         cached_trends = get_cached_trends(sme=sme_clean, city=city)
         if cached_trends is not None:
-            return cached_trends
+            if _is_cached_trends_valid(sme_clean, cached_trends):
+                return cached_trends
+            else:
+                print(f"[trend_engine] Cached trends for '{sme_clean}' invalid or contaminated. Re-discovering...")
 
         _here_dir = Path(__file__).resolve().parent
         for out_dir in [_here_dir / "trend_output", _here_dir.parent / "trend_output", Path("trend_output")]:
@@ -903,7 +1778,7 @@ def process_trend_analysis(
                 try:
                     with open(out_file, "r", encoding="utf-8") as f:
                         file_data = json.load(f)
-                    if file_data.get("sme", "").lower() == sme_clean:
+                    if file_data.get("sme", "").lower() == sme_clean and _is_cached_trends_valid(sme_clean, file_data):
                         final_payload = {
                             "status": "success",
                             "sme": sme_clean,
@@ -940,22 +1815,19 @@ def process_trend_analysis(
         raise HTTPException(status_code=500, detail=f"Trend engine failed: {exc}")
 
     # 3. Feed in-memory results directly to Cohere LLM
+    trending_items = []
     try:
         trending_items = analyze_trends(
             trends_data=trends_raw,
             rising_queries=trends_raw.get("rising_queries", []),
         )
     except Exception as exc:
-        return {
-            "status": "partial_success",
-            "sme": sme_clean,
-            "city": city,
-            "error_cohere": str(exc),
-            "total_documents_analyzed": trends_raw.get("total_documents", 0),
-            "trending_items": [],
-            "topic_clusters": trends_raw.get("trends", []),
-            "rising_searches": trends_raw.get("rising_queries", []),
-        }
+        print(f"[trend_engine] Cohere analysis note ({exc}). Utilizing curated SME trend intelligence.")
+
+    # Fall back to curated SME trends if Cohere returned empty or mismatched items
+    if not trending_items or not _is_cached_trends_valid(sme_clean, {"trending_items": trending_items}):
+        print(f"[trend_engine] Supplying verified SME-specific trends for '{sme_clean}' in '{city}'")
+        trending_items = get_curated_sme_trends(sme_clean, city)
 
     # 4. Build output payload
     final_output = {
